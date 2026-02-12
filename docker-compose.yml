@@ -1,6 +1,6 @@
 services:
   jellybrry:
-    build: .
+    image: ghcr.io/eightbitmagnets/jellybrry:latest
     container_name: jellybrry
     restart: unless-stopped
     ports:
