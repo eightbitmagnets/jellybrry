@@ -1,0 +1,11 @@
+services:
+  jellybrry:
+    build: .
+    container_name: jellybrry
+    restart: unless-stopped
+    ports:
+      - "6070:6070"
+    volumes:
+      - ./config:/config
+    environment:
+      - THEME=jellybrry

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jellybrry Setup</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="setup-body theme-{{ theme|default('dark') }}">
+    <div class="setup-container">
+        <div class="setup-brand">
+            <img src="{{ url_for('static', filename='jellybrry.png') }}" alt="Logo" class="setup-logo">
+            <span>Jellybrry Setup</span>
+        </div>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert error">{{ messages[0] }}</div>
+            {% endif %}
+        {% endwith %}
+
+        {% if step == 1 %}
+        <form method="POST">
+            <input type="hidden" name="step" value="1">
+            <div class="form-group">
+                <label>Jellyfin URL</label>
+                <input type="text" name="jellyfin_url" placeholder="http://192.168.1.5:8096" value="{{ existing_url }}" required>
+            </div>
+            <div class="form-group">
+                <label for="apiKeyInput">API Key</label>
+                <div class="password-wrapper">
+                    <input type="password" id="apiKeyInput" name="api_key" placeholder="Enter API Key from Jellyfin Dashboard" value="{{ existing_api_key }}" required>
+                    <i class="fas fa-eye toggle-password" data-target="apiKeyInput"></i>
+                </div>
+            </div>
+            <button type="submit" class="btn-primary">Connect & Fetch Users</button>
+        </form>
+
+        {% elif step == 2 %}
+        <form method="POST">
+            <input type="hidden" name="step" value="2">
+            <input type="hidden" name="url" value="{{ url }}">
+            <input type="hidden" name="api_key" value="{{ api_key }}">
+            
+            <div class="form-group">
+                <label>Select Jellyfin User</label>
+                <select name="user_id" required>
+                    {% for user in users %}
+                    <option value="{{ user.Id }}">{{ user.Name }}</option>
+                    {% endfor %}
+                </select>
+                <small>We will display the library available to this user.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="adminPassInput">Create Admin Password</label>
+                <div class="password-wrapper">
+                    <input type="password" name="admin_password" id="adminPassInput" placeholder="Create a strong password" required>
+                    <i class="fas fa-eye toggle-password" data-target="adminPassInput"></i>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-primary">Finish Setup</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <script>
+        const togglePasswords = document.querySelectorAll('.toggle-password');
+        togglePasswords.forEach(icon => {
+            icon.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-target');
+                toggleInput(targetId, this);
+            });
+        });
+
+        function toggleInput(id, icon) {
+            const input = document.getElementById(id);
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = "password";
+                icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye');
+            }
+        }
+    </script>
+</body>
+</html>

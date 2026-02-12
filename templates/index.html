@@ -1,0 +1,1487 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jellybrry - {{ config.get('server_name', 'My Media Server') }}</title>
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.base_url }}">
+    <meta property="og:title" content="Jellybrry - {{ config.get('server_name', 'My Media Server') }}">
+    <meta property="og:description" content="A quick way for your users to browse your jelly.">
+    <meta property="og:image" content="{{ url_for('static', filename='jellybrry-preview.png', _external=True) }}">
+
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ request.base_url }}">
+    <meta property="twitter:title" content="Jellybrry - {{ config.get('server_name', 'My Media Server') }}">
+    <meta property="twitter:description" content="A quick way for your users to browse your jelly.">
+    <meta property="twitter:image" content="{{ url_for('static', filename='jellybrry-preview.png', _external=True) }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="{% if locked %}locked-mode{% endif %} theme-{{ config.theme|default('dark') }}">
+    <!-- Anti-FOUC -->
+    <script>
+    (function() {
+        const savedTheme = localStorage.getItem('user_theme');
+        if (savedTheme) {
+            document.body.classList.remove('theme-dark', 'theme-light', 'theme-jellybrry');
+            document.body.classList.add('theme-' + savedTheme);
+        }
+    })();
+    </script>
+    
+    <!-- Navbar -->
+    <nav class="navbar desktop-only">
+        <div class="navbar-content">
+            <div class="nav-left">
+                <div class="nav-brand" id="logoResetBtn" style="cursor: pointer;">
+                    <img src="{{ url_for('static', filename='jellybrry-full.png') }}" alt="Logo" class="nav-logo">
+                    <!--<span>Jellybrry</span>-->
+                </div>
+            </div>
+            
+            {% if not locked %}
+            <div class="nav-center">
+                <div class="search-filter-container">
+                    <div class="nav-search">
+                        <label for="searchInput" class="sr-only">Search</label>
+                        <input type="text" id="searchInput" placeholder="Search...">
+                    </div>
+                    <!-- Filter Button -->
+                    <button class="btn-icon-only" id="desktopFilterBtn" title="Filter">
+                        <i class="fas fa-filter"></i>
+                    </button>
+
+                    <!-- Sort Button -->
+                    <button class="btn-icon-only" id="desktopSortBtn" title="Sort">
+                        <i class="fas fa-sort-amount-down"></i>
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="nav-actions">
+                {% if not locked %}
+                {% endif %}
+                <button class="btn-icon" id="desktopSettingsBtn" title="Settings"><i class="fas fa-cog"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <nav class="navbar mobile-only">
+        <div class="mobile-navbar-content">
+            <img src="{{ url_for('static', filename='jellybrry-mark.png') }}" alt="Logo" class="nav-logo">
+            <span class="mobile-page-title">{{ config.server_name|default('Your Media Server', true) }}</span>
+            <span class="count" id="total-count">{{ movies|length + series|length }} results</span>
+            <!--<div style="width: 30px;"></div> -->
+        </div>
+    </nav>
+
+    <div id="mobileSearchInputBar" class="mobile-search-bar mobile-only">
+        <input type="text" id="mobileSearchInput" placeholder="Search titles..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-dim); background: var(--bg-input); color: var(--text-main);">
+    </div>
+
+    {% if not locked %}
+    <nav class="bottom-nav mobile-only">
+        <button class="nav-item" id="mobileHomeBtn">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </button>
+        <button class="nav-item" id="mobileSearchBtn">
+            <i class="fas fa-search"></i>
+            <span>Search</span>
+        </button>
+        <button class="nav-item" id="mobileFilterBtn">
+            <i class="fas fa-filter"></i>
+            <span>Filter</span>
+        </button>
+        <button class="nav-item" id="mobileSortBtn">
+            <i class="fas fa-sort-amount-down"></i>
+            <span>Sort</span>
+        </button>
+        <button class="nav-item" id="mobileSettingsBtn">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+        </button>
+    </nav>
+    {% endif %}
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div id="flash-message" class="flash-message">{{ messages[0] }}</div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="main-container">
+        {% if locked %}
+            <div class="locked-message" style="text-align: center; padding: 4rem 2rem;">
+                <h2 style="font-size: 2rem; margin-bottom: 1rem;"><i class="fas fa-lock"></i> Library Locked</h2>
+                <p style="color: var(--text-sub); margin-bottom: 2rem;">Please log in as admin to view this library.</p>
+                <button class="btn-primary" id="loginBtnLocked" style="max-width: 200px;">Log In</button>
+            </div>
+        {% else %}
+            <!-- ALPHABET SIDEBAR CONTAINER -->
+            <div class="alpha-sidebar" id="alphaSidebar"></div>
+
+            <!-- Combined Header -->
+            <div class="section-header" id="main-header">
+                <h2>{{ config.server_name|default('Your Media Server', true) }}</h2> 
+                <span class="count" id="total-count">{{ movies|length + series|length }} results</span>
+            </div>
+
+            <!-- STANDARD GRID VIEW -->
+            <div class="media-grid" id="main-grid">
+                {% for item in movies %}
+                <div class="media-card movie-card" 
+                     data-type="Movie"
+                     data-official-rating="{{ item.OfficialRating|default('NR') }}"
+                     data-library="{{ item.LibraryName }}"
+                     data-genres="{{ item.Genres|join(', ') }}"
+                     data-collections="{{ item.Collections|join(', ') }}"
+                     data-item='{{ item|tojson|safe }}'>
+                    <div class="poster-wrapper">
+                        <img src="{{ item.PosterUrl }}" loading="lazy" alt="{{ item.Name }}" class="card-poster">
+                    </div>
+                    <div class="info">
+                        <div class="title">{{ item.Name }}</div>
+                        <div class="meta">
+                            <span>{{ item.ProductionYear }}</span>
+                            <span>{{ item.RunTimeTicks|runtime }}</span>
+                        </div>
+                        <div class="overview">{{ item.Overview }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% for item in series %}
+                 <div class="media-card series-card"
+                     data-type="Series"
+                     data-official-rating="{{ item.OfficialRating|default('NR') }}"
+                     data-library="{{ item.LibraryName }}"
+                     data-genres="{{ item.Genres|join(', ') }}"
+                     data-collections="{{ item.Collections|join(', ') }}"
+                     data-item='{{ item|tojson|safe }}'>
+                    <div class="poster-wrapper">
+                        <img src="{{ item.PosterUrl }}" loading="lazy" alt="{{ item.Name }}" class="card-poster">
+                        {% if item.RecursiveItemCount %}
+                        <div class="overlay">
+                            {{ item.RecursiveItemCount }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="info">
+                        <div class="title">{{ item.Name }}</div>
+                        <div class="meta">
+                            <span>{{ item.ProductionYear }}</span>
+                        </div>
+                        <div class="overview">{{ item.Overview }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- LOAD MORE BUTTON -->
+            <div class="load-more-container" id="loadMoreContainer" style="display: none;">
+                <button class="btn-load-more" id="loadMoreBtn">Load More</button>
+            </div>
+
+            <!-- GROUPED VIEW (Hidden by default) -->
+            <div id="grouped-view" class="grouped-view-container" style="display: none;"></div>
+        {% endif %}
+    </div>
+
+    <!-- Details Modal -->
+    <div id="detailsModal" class="modal-overlay">
+        <div class="modal-content details-content">
+            <button class="close-modal" id="closeDetailsBtn">&times;</button>
+            <div id="detailsBackdrop" class="details-backdrop"></div>
+            <div class="details-body">
+                <div class="details-poster-container">
+                    <img id="detailsPosterImg" src="" alt="Poster" class="card-poster">
+                </div>
+                <div class="details-info">
+                    <h2 id="detailsTitle">Title</h2>
+                    <div class="details-meta-row">
+                        <span id="detailsYear" class="badge">Year</span>
+                        <span id="detailsRuntime" class="badge" style="display: none;">Runtime</span>
+                        <span id="detailsMpaRating" class="badge" style="display: none;">NR</span>
+                        <span id="detailsRating" class="badge"><i class="fas fa-star"></i> <span>0.0</span></span>
+                        <span id="detailsType" class="badge badge-type">Type</span>
+                        <span id="detailsCollectionBadge" class="badge badge-collection" style="display: none;">Collection</span>
+                    </div>
+                    <p id="detailsOverview">Overview text...</p>
+                    <div class="details-divider"></div>
+                    <div class="details-genres" id="detailsGenres"></div>
+                    <div class="details-divider"></div>
+                    <div class="details-tech-info">
+                        <strong id="detailsLibraryLabel">Library:</strong> <span id="detailsLibrary"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Modal -->
+    <div id="filterMenu" class="dropdown-content mega-menu">
+        <button class="close-modal mobile-only" id="closeFilterBtn">&times;</button>
+        <div class="mega-menu-grid">
+
+            <!-- Column 1: Media Type -->
+            <div class="filter-column">
+                <h4>Media Type</h4>
+                <div class="column-controls">
+                    <span class="toggle-all" data-target="typeInputs" data-state="true">All</span>
+                    <span class="toggle-all" data-target="typeInputs" data-state="false">None</span>
+                </div>
+                <div id="typeInputs" class="checkbox-list">
+                    <label><input type="checkbox" class="filter-checkbox" value="Movie"> Movies</label>
+                    <label><input type="checkbox" class="filter-checkbox" value="Series"> TV Series</label>
+                </div>
+            </div>
+
+            <!-- Column 2: Library -->
+            <div class="filter-column">
+                <h4>Library</h4>
+                <div class="column-controls">
+                    <span class="toggle-all" data-target="libInputs" data-state="true">All</span>
+                    <span class="toggle-all" data-target="libInputs" data-state="false">None</span>
+                </div>
+                <div id="libInputs" class="checkbox-list scrollable-list">
+                    {% for lib in all_libraries %}
+                    <label><input type="checkbox" class="filter-checkbox" value="{{ lib }}"> {{ lib }}</label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Column 3: Genre -->
+            <div class="filter-column">
+                <h4>Genre</h4>
+                <div class="column-controls">
+                    <span class="toggle-all" data-target="genreInputs" data-state="true">All</span>
+                    <span class="toggle-all" data-target="genreInputs" data-state="false">None</span>
+                </div>
+                <div id="genreInputs" class="checkbox-list scrollable-list">
+                    {% for genre in all_genres %}
+                    <label><input type="checkbox" class="filter-checkbox" value="{{ genre }}"> {{ genre }}</label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Column 4: Collection -->
+            <div class="filter-column">
+                <h4>Collection</h4>
+                <div class="column-controls">
+                    <span class="toggle-all" data-target="collectionInputs" data-state="true">All</span>
+                    <span class="toggle-all" data-target="collectionInputs" data-state="false">None</span>
+                </div>
+                <div id="collectionInputs" class="checkbox-list scrollable-list">
+                    {% for col in all_collections %}
+                    <label><input type="checkbox" class="filter-checkbox" value="{{ col }}"> {{ col }}</label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Alpha Grid -->
+             <div class="filter-column mobile-only">
+                <h4>First Letter</h4>
+                <div id="mobileAlphaInputs"  class="alpha-grid">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sort Modal -->
+     <div id="sortMenu" class="dropdown-content sort-menu">
+            <button class="close-modal mobile-only" id="closeSortBtn">&times;</button>
+            <div class="sort-group">
+            <h4>Sort Title</h4>
+            <div class="sort-options">
+                <button class="sort-option" data-sort="title" data-order="asc">A-Z</button>
+                <button class="sort-option" data-sort="title" data-order="desc">Z-A</button>
+            </div>
+        </div>
+        <div class="sort-group">
+            <h4>Release Year</h4>
+            <div class="sort-options">
+                <button class="sort-option" data-sort="year" data-order="desc">Newest</button>
+                <button class="sort-option" data-sort="year" data-order="asc">Oldest</button>
+            </div>
+        </div>
+        <div class="sort-group">
+            <h4>Runtime</h4>
+            <div class="sort-options">
+                <button class="sort-option" data-sort="runtime" data-order="desc">Longest</button>
+                <button class="sort-option" data-sort="runtime" data-order="asc">Shortest</button>
+            </div>
+        </div>
+        <div class="sort-group">
+            <h4>Star Rating</h4>
+            <div class="sort-options">
+                <button class="sort-option" data-sort="rating" data-order="desc">High</button>
+                <button class="sort-option" data-sort="rating" data-order="asc">Low</button>
+            </div>
+        </div>
+        <div class="sort-group">
+            <h4>Date Added</h4>
+            <div class="sort-options">
+                <button class="sort-option" data-sort="date" data-order="desc">Newest</button>
+                <button class="sort-option" data-sort="date" data-order="asc">Oldest</button>
+            </div>
+        </div>
+        <div class="sort-divider"></div>
+        <div class="sort-group">
+            <h4>Group By</h4>
+            <div class="sort-options full-width">
+                <button class="sort-option" data-sort="genre" data-order="asc">Genre</button>
+                <button class="sort-option" data-sort="library" data-order="asc">Library</button>
+                <button class="sort-option" data-sort="collection" data-order="asc">Collection</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="close-modal" id="closeSettingsBtn">&times;</button>
+
+            {% if not locked %}
+            <a href="{{ url_for('refresh') }}" class="refresh-icon-modal" title="Resync Libraries">
+                <i class="fas fa-sync"></i>
+            </a>
+            {% endif %}
+
+            <h2 style="margin-top: 0; margin-bottom: 20px; text-align: center;">
+                {% if is_admin %}
+                    Settings <span class="admin-badge">ADMIN</span>
+                {% else %}
+                    Settings
+                {% endif %}
+            </h2>
+
+            <!-- THEME SELECTOR -->
+            <div class="form-group">
+                <label>Theme</label>
+                <div class="theme-selector-grid">                         
+                    <!-- Dark -->
+                    <label class="theme-card">
+                        <input type="radio" name="theme" value="dark" {% if config.theme == 'dark' %}checked{% endif %}">
+                        <svg viewBox="0 0 150 100" class="thumb-img" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="150" height="100" fill="#121212" rx="4"/>
+                            <rect width="150" height="15" fill="#1f1f1f"/>
+                            <rect x="5" y="4.5" width="18" height="6" rx="3" fill="#7950f2"/>
+                            <rect x="55" y="5" width="40" height="5" rx="2" fill="#121212"/>
+                            <circle cx="135" cy="7.5" r="2" fill="#a0a0a0"/>
+                            <circle cx="143" cy="7.5" r="2" fill="#a0a0a0"/>
+                            <rect x="10" y="25" width="40" height="6" rx="1" fill="#e0e0e0"/>
+                            <rect x="10" y="38" width="30" height="40" rx="2" fill="#1f1f1f"/>
+                            <rect x="45" y="38" width="30" height="40" rx="2" fill="#1f1f1f"/>
+                            <rect x="80" y="38" width="30" height="40" rx="2" fill="#1f1f1f"/>
+                            <rect x="115" y="38" width="30" height="40" rx="2" fill="#1f1f1f"/> 
+                        </svg>
+                        <span>Dark</span>
+                    </label>
+                    
+                    <!-- Light -->
+                    <label class="theme-card">
+                        <input type="radio" name="theme" value="light" {% if config.theme == 'light' %}checked{% endif %}">
+                        <svg viewBox="0 0 150 100" class="thumb-img" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="150" height="100" fill="#f3f4f6" rx="4"/>
+                            <rect width="150" height="15" fill="#ffffff"/>
+                            <rect x="5" y="4.5" width="18" height="6" rx="3" fill="#2563eb"/>
+                            <rect x="55" y="5" width="40" height="5" rx="2" fill="#f3f4f6"/>
+                            <circle cx="135" cy="7.5" r="2" fill="#6b7280"/>
+                            <circle cx="143" cy="7.5" r="2" fill="#6b7280"/>
+                            <rect x="10" y="25" width="40" height="6" rx="1" fill="#111827"/>
+                            <rect x="10" y="38" width="30" height="40" rx="2" fill="#ffffff"/>
+                            <rect x="45" y="38" width="30" height="40" rx="2" fill="#ffffff"/>
+                            <rect x="80" y="38" width="30" height="40" rx="2" fill="#ffffff"/>
+                            <rect x="115" y="38" width="30" height="40" rx="2" fill="#ffffff"/> 
+                        </svg>
+                        <span>Light</span>
+                    </label>
+
+                    <!-- Jellybrry -->
+                    <label class="theme-card">
+                        <input type="radio" name="theme" value="jellybrry" {% if config.theme|default('jellybrry') == 'jellybrry' %}checked{% endif %}">
+                        <svg viewBox="0 0 150 100" class="thumb-img" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="150" height="100" fill="#160e1d" rx="4"/>
+                            <rect width="150" height="15" fill="#23152c"/>
+                            <rect x="5" y="4.5" width="18" height="6" rx="3" fill="#c026d3"/>
+                            <rect x="55" y="5" width="40" height="5" rx="2" fill="#160e1d"/>
+                            <circle cx="135" cy="7.5" r="2" fill="#a78bfa"/>
+                            <circle cx="143" cy="7.5" r="2" fill="#a78bfa"/>
+                            <rect x="10" y="25" width="40" height="6" rx="1" fill="#f8fafc"/>
+                            <rect x="10" y="38" width="30" height="40" rx="2" fill="#23152c"/>
+                            <rect x="45" y="38" width="30" height="40" rx="2" fill="#23152c"/>
+                            <rect x="80" y="38" width="30" height="40" rx="2" fill="#23152c"/>
+                            <rect x="115" y="38" width="30" height="40" rx="2" fill="#23152c"/> 
+                        </svg>
+                        <span>Jellybrry</span>
+                    </label>
+                </div>
+            </div>
+
+            {% if not is_admin %}
+            <div id="guestLoginSection" style="margin-top: 20px; border-top: 1px solid var(--border-dim); padding-top: 20px;">
+                <button type="button" id="showLoginBtn" class="btn-text" style="width: 100%; text-align: center; color: var(--text-sub);">
+                    <i class="fas fa-lock"></i> Admin Login
+                </button>
+
+                <div id="hiddenLoginForm" style="display: none;">
+                    <form action="{{ url_for('login') }}" method="POST">
+                        <div class="form-group">
+                            <label for="loginPass">Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" id="loginPass" name="password" required>
+                                <i class="fas fa-eye toggle-password" data-target="loginPass"></i>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-outline" style="width: auto; text-align: left;">Sign In</button>
+                    </form>
+                </div>
+            </div>
+            <div style="margin-top: 20px; text-align: right;">
+                <button type="button" id="guestSaveBtn" class="btn-primary" style="width: 100%">Save Changes</button>
+            </div>
+            {% endif %}
+
+            {% if is_admin %}
+            <form action="{{ url_for('update_settings') }}" method="POST">
+                <input type="hidden" name="theme" id="hiddenThemeInput" value="{{ config.theme }}">
+                
+                <div class="form-group">
+                    <label for="serverNameInput">Page Headline</label>
+                    <input type="text" id="serverNameInput" name="server_name" value="{{ config.server_name|default('Your Media Server', true) }}" placeholder="Your Media Server">
+                </div>
+
+                <div class="form-divider"></div>
+
+                <div class="form-group">
+                    <label for="jellyfinUrlInput">Jellyfin URL</label>
+                    <input type="text" id="jellyfinUrlInput" name="jellyfin_url" value="{{ config.jellyfin_url }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="modalApiKey">API Key</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="modalApiKey" name="api_key" value="{{ config.api_key }}" required>
+                        <i class="fas fa-eye toggle-password" data-target="modalApiKey"></i>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="userIdSelect">Jellyfin User</label>
+                    <select name="user_id" id="userIdSelect">
+                        {% for user in users %}
+                        <option value="{{ user.Id }}" {% if user.Id|string == config.user_id|string %}selected{% endif %}>{{ user.Name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="newAdminPass">Change Admin Password (Optional)</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="newAdminPass" name="admin_password" placeholder="Leave blank to keep current">
+                        <i class="fas fa-eye toggle-password" data-target="newAdminPass"></i>
+                    </div>
+                </div>
+
+                <div class="form-divider"></div>
+                
+                <div class="checkbox-group" style="margin-bottom: 10px;">
+                    <label for="reqLoginCheck">
+                        <input type="checkbox" id="reqLoginCheck" name="require_login_for_library" {% if config.require_login_for_library %}checked{% endif %}>
+                        Require Login to View Library
+                    </label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <label for="bypassLocalCheck">
+                        <input type="checkbox" id="bypassLocalCheck" name="bypass_local" {% if config.bypass_local %}checked{% endif %}>
+                        No Login required on Local Network
+                    </label>
+                    <small>View library from local network without logging in.</small>
+                </div>
+
+                <div class="modal-actions">
+                    <a href="{{ url_for('logout') }}" class="btn-danger">Sign Out</a>
+                    <button type="submit" class="btn-primary" style="flex: 1;">Save Changes</button>
+                </div>
+            </form>
+            {% endif %}
+
+            <div style="text-align: left; margin-top: 30px; margin-bottom: 10px; border-top: 1px solid var(--border-dim); padding-top: 20px; font-size: 0.75rem; color: var(--text-sub); opacity: 0.8;">
+                <div>Jellybrry v1.0.0</div>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        let mediaCache = [];
+        let initialTheme = 'dark';
+        let tempTheme = null;
+        const ITEMS_PER_PAGE = 100;
+        let currentPage = 1;
+        let currentFilteredItems = [];
+
+        // === Scroll Lock ===
+        function lockBodyScroll() {
+            document.body.style.overflow = 'hidden';
+        }
+        function unlockBodyScroll() {
+            document.body.style.overflow = '';
+        }
+
+     
+        document.addEventListener('DOMContentLoaded', () => {
+            const flash = document.getElementById('flash-message');
+            if (flash) {
+                setTimeout(() => {
+                    flash.style.transition = "opacity 1s ease";
+                    flash.style.opacity = "0";
+                    setTimeout(() => flash.remove(), 1000); 
+                }, 3000); 
+            }
+
+            // === UI LOGIC: DEPENDENT CHECKBOXES ===
+            const reqLoginCheck = document.getElementById('reqLoginCheck');
+            const bypassLocalCheck = document.getElementById('bypassLocalCheck');
+            
+            if (reqLoginCheck && bypassLocalCheck) {
+                // Helper function to toggle the state
+                const toggleBypassState = () => {
+                    const isLocked = reqLoginCheck.checked;
+                    const wrapper = bypassLocalCheck.closest('.checkbox-group');
+                    
+                    if (isLocked) {
+                        // ENABLED
+                        bypassLocalCheck.disabled = false;
+                        if (wrapper) wrapper.classList.remove('disabled-input');
+                    } else {
+                        // DISABLED
+                        bypassLocalCheck.disabled = true;
+                        if (wrapper) wrapper.classList.add('disabled-input');
+                    }
+                };
+                // Run once on load to set initial state
+                toggleBypassState();
+                // Listen for changes
+                reqLoginCheck.addEventListener('change', toggleBypassState);
+            }
+
+            const savedTheme = localStorage.getItem('user_theme');
+            if (savedTheme) {
+                const activeRadio = document.querySelector(`input[name="theme"][value="${savedTheme}"]`);
+                if (activeRadio) activeRadio.checked = true;
+            }
+
+            // === Auto-Open Settings on Login ===
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('open_settings') === 'true') {
+                openSettings();
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+            
+            const fallbackSVG = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22200%22%20height%3D%22300%22%20viewBox%3D%220%200%20200%20300%22%3E%3Crect%20fill%3D%22%23333%22%20width%3D%22200%22%20height%3D%22300%22%2F%3E%3Ctext%20fill%3D%22%23777%22%20font-family%3D%22sans-serif%22%20font-size%3D%2220%22%20dy%3D%2210.5%22%20font-weight%3D%22bold%22%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%3ENo%20Image%3C%2Ftext%3E%3C%2Fsvg%3E";
+            
+            document.body.addEventListener('error', function(event) {
+                if (event.target.tagName.toLowerCase() === 'img' && event.target.classList.contains('card-poster')) {
+                    event.target.src = fallbackSVG;
+                    event.target.onerror = null; 
+                }
+            }, true); 
+
+            // === Cache Media Data ===
+            const allCards = document.querySelectorAll('.media-card');
+            mediaCache = Array.from(allCards).map(card => {
+                return {
+                    element: card,
+                    title: (card.querySelector('.title')?.textContent || "").toLowerCase(),
+                    type: (card.getAttribute('data-type') || "").toLowerCase(),
+                    library: (card.getAttribute('data-library') || "").toLowerCase(),
+                    genres: (card.getAttribute('data-genres') || "").replace(/[\[\]'"]/g, '').toLowerCase().split(/,\s*/).map(s => s.trim()),
+                    collections: (card.getAttribute('data-collections') || "").toLowerCase().split(/,\s*/).map(s => s.trim())
+                };
+            });
+
+            setupAlphaSidebar();
+
+            const desktopSearch = document.getElementById('searchInput');
+            const mobileSearch = document.getElementById('mobileSearchInput');
+            const mobileSearchBar = document.getElementById('mobileSearchInputBar');
+
+            function syncSearch(val) {
+                if(desktopSearch && desktopSearch.value !== val) desktopSearch.value = val;
+                if(mobileSearch && mobileSearch.value !== val) mobileSearch.value = val;
+                filterMedia(false); // Triggers the filter
+            }
+
+            if(desktopSearch) {
+                desktopSearch.addEventListener('input', debounce(() => filterMedia(false), 300));
+            }
+            if(mobileSearch) {
+                mobileSearch.addEventListener('input', debounce(() => filterMedia(false), 300));
+            }
+
+            // === BUTTON HANDLERS (Desktop) ===
+            // 1. FILTER MENU
+            const toggleFilter = (e) => {
+                e.stopPropagation();
+                const menu = document.getElementById('filterMenu');
+                const btn = e.currentTarget;
+                const isClosed = !menu.classList.contains('show');
+                const sortMenu = document.getElementById('sortMenu');
+                const sortOn = sortMenu.classList.contains('show');
+
+
+                // Desktop Positioning
+                if (window.innerWidth > 768) {
+                    const rect = btn.getBoundingClientRect();
+                    menu.style.position = 'fixed';
+                    menu.style.top = (rect.bottom + 10) + 'px';
+                    menu.style.left = (rect.left + (rect.width / 2) - 200) + 'px';
+                }
+
+                if (isClosed) {
+                    if (sortOn) { closeMenu('sortMenu', true); }
+                    menu.classList.add('show');
+                    btn.classList.add('active');
+                } else {
+                    closeMenu('filterMenu', true);
+                }
+            };
+            document.getElementById('desktopFilterBtn')?.addEventListener('click', toggleFilter);
+
+            // 2. SORT MENU
+            const toggleSort = (e) => {
+                e.stopPropagation();
+                const menu = document.getElementById('sortMenu');
+                const btn = e.currentTarget;
+                const isClosed = !menu.classList.contains('show');
+                const filterMenu = document.getElementById('filterMenu');
+                const filterOn = filterMenu.classList.contains('show');
+
+                // Desktop Positioning
+                if (window.innerWidth > 768) {
+                    const rect = btn.getBoundingClientRect();
+                    menu.style.position = 'fixed';
+                    menu.style.top = (rect.bottom + 10) + 'px';
+                    menu.style.left = (rect.left - 150) + 'px';
+                }
+
+                if (isClosed) {
+                    if (filterOn) { closeMenu('filterMenu', true); }
+                    menu.classList.add('show');
+                    btn.classList.add('active');
+                } else {
+                    closeMenu('sortMenu', true);
+                }
+            }
+            document.getElementById('desktopSortBtn')?.addEventListener('click', toggleSort);
+
+            // 5. X CLOSE BUTTONS (For Mobile Modals)
+            document.getElementById('closeFilterBtn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeMenu('filterMenu', true);
+            });
+            document.getElementById('closeSortBtn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeMenu('sortMenu', true);
+            });
+            document.getElementById('closeSettingsBtn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeSettings(true);
+            });
+
+            // 6. GUEST LOGIN REVEAL / SETTINGS
+            const showLoginBtn = document.getElementById('showLoginBtn');
+            if (showLoginBtn) {
+                showLoginBtn.addEventListener('click', function() {
+                    this.style.display = 'none'; // Hide the Admin Signin Button
+                    document.getElementById('hiddenLoginForm').style.display = 'block'; // Show the pw form
+                    document.getElementById('loginPass').focus(); // Auto-focus the password field
+                })
+            }
+
+            // --- SORT LOGIC UPDATE ---
+            const sortOptions = document.querySelectorAll('.sort-option');
+            sortOptions.forEach(opt => {
+                opt.addEventListener('click', (e) => {
+                    const target = e.target;
+                    const criteria = target.getAttribute('data-sort');
+                    const order = target.getAttribute('data-order');
+                    const isGroupOption = ['genre', 'library', 'collection'].includes(criteria);
+
+                    if (isGroupOption) {
+                        // Handle Grouping Toggle
+                        if (currentGroupState === criteria) {
+                            // Deactivate
+                            currentGroupState = null;
+                            target.classList.remove('active');
+                            currentSortState = { criteria: 'title', order: 'asc' };
+                            sortOptions.forEach(o => {
+                                if (!['genre', 'library', 'collection'].includes(o.getAttribute('data-sort'))) {
+                                    o.classList.remove('active');
+                                }
+                            });
+
+                            const defaultSort = document.querySelector('.sort-option[data-sort="title"][data-order="asc"]');
+                            if(defaultSort) defaultSort.classList.add('active');
+                        } else {
+                            // Activate new group
+                            currentGroupState = criteria;
+                            // Remove active from other GROUP options only
+                            sortOptions.forEach(o => {
+                                if(['genre', 'library', 'collection'].includes(o.getAttribute('data-sort'))) {
+                                    o.classList.remove('active');
+                                }
+                            });
+                            target.classList.add('active');
+                            
+                            // Special Case: User liked Collection sorting by Year
+                            if (criteria === 'collection') {
+                                currentSortState = { criteria: 'year', order: 'asc' };
+                                // Update Sort UI
+                                sortOptions.forEach(o => o.classList.remove('active'));
+                                target.classList.add('active'); 
+                                const yearBtn = document.querySelector('.sort-option[data-sort="year"][data-order="asc"]');
+                                if(yearBtn) yearBtn.classList.add('active');
+                            }
+                        }
+                    } else {
+                        // Handle Sorting
+                        currentSortState = { criteria, order };
+                        // Remove active from other SORT options only
+                        sortOptions.forEach(o => {
+                            if(!['genre', 'library', 'collection'].includes(o.getAttribute('data-sort'))) {
+                                o.classList.remove('active');
+                            }
+                        });
+                        target.classList.add('active');
+                    }
+
+                    applySort();
+                    closeMenu('sortMenu', true);
+                    // Scroll to the top
+                    window.scrollTo({ top: 0, behavior: 'smooth'});
+                });
+            });
+
+            // --- LOGO RESET LOGIC ---
+            const logoBtn = document.getElementById('logoResetBtn');
+            if (logoBtn) {
+                logoBtn.addEventListener('click', () => {
+                    // 1. Reset Filters & search fields
+                    const dInput = document.getElementById('searchInput');
+                    const mInput = document.getElementById('mobileSearchInput');
+                    if (dInput) dInput.value = "";
+                    if (mInput) mInput.value = "";
+
+                    document.querySelectorAll('.filter-checkbox').forEach(cb => cb.checked = false);
+                    currentAlphaFilter = null;
+                    document.querySelectorAll('.alpha-item').forEach(i => i.classList.remove('active'));
+                    
+                    // 2. Reset Sort to Title A-Z and Clear Groups
+                    currentSortState = { criteria: 'title', order: 'asc' };
+                    currentGroupState = null;
+                    
+                    document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('active'));
+                    
+                    const defaultSort = document.querySelector('.sort-option[data-sort="title"][data-order="asc"]');
+                    if(defaultSort) defaultSort.classList.add('active');
+
+                    // 3. Apply changes (filterMedia calls applySort if false is passed)
+                    filterMedia(false);
+
+                    // 4. Scroll to the top
+                    window.scrollTo({ top: 0, behavior: 'smooth'});
+                });
+            }
+
+            const checkboxes = document.querySelectorAll('.filter-checkbox');
+            checkboxes.forEach(box => {
+                box.addEventListener('change', () => filterMedia(false));
+            });
+
+            const toggleBtns = document.querySelectorAll('.toggle-all');
+            toggleBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const targetId = e.target.getAttribute('data-target');
+                    const state = e.target.getAttribute('data-state') === 'true';
+                    toggleColumn(targetId, state);
+                });
+            });
+
+            const resetBtn = document.getElementById('resetFiltersBtn');
+            if(resetBtn) {
+                resetBtn.addEventListener('click', resetFilters);
+            }
+            
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            if(loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', () => {
+                    currentPage++;
+                    renderPagination();
+                });
+            }
+            
+            const loginBtnLocked = document.getElementById('loginBtnLocked');
+            if(loginBtnLocked) loginBtnLocked.addEventListener('click', openSettings);
+
+            const closeDetailsBtn = document.getElementById('closeDetailsBtn');
+            if(closeDetailsBtn) closeDetailsBtn.addEventListener('click', closeDetails);
+
+            const mainContainer = document.querySelector('.main-container');
+            if (mainContainer) {
+                mainContainer.addEventListener('click', function(e) {
+                    const card = e.target.closest('.media-card');
+                    if (card) {
+                        const itemData = JSON.parse(card.getAttribute('data-item'));
+                        openDetails(itemData);
+                    }
+                });
+            }
+
+            const togglePasswords = document.querySelectorAll('.toggle-password');
+            togglePasswords.forEach(icon => {
+                icon.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-target');
+                    toggleInput(targetId, this);
+                });
+            });
+
+            window.addEventListener('click', (event) => {
+                const settingsModal = document.getElementById('settingsModal');
+                const detailsModal = document.getElementById('detailsModal');
+                const filterMenu = document.getElementById('filterMenu');
+                const sortMenu = document.getElementById('sortMenu');
+
+                if (event.target === settingsModal) closeSettings(true);
+                if (event.target === detailsModal) closeDetails();
+
+                if (filterMenu && filterMenu.classList.contains('show')) { 
+                    if (!event.target.closest('#filterMenu') && !event.target.closest('#desktopFilterBtn')) {
+                        closeMenu('filterMenu', true);
+                    }
+                }
+
+                if (sortMenu && sortMenu.classList.contains('show')) { 
+                    if (!event.target.closest('#sortMenu') && !event.target.closest('#desktopSortBtn')) {
+                        closeMenu('sortMenu', true);
+                    }
+                }
+            });
+
+            const defaultSortBtn = document.querySelector('.sort-option[data-sort="title"][data-order="asc"]');
+            if(defaultSortBtn) defaultSortBtn.classList.add('active');
+            filterMedia(false); 
+
+            // === MOBILE NAV HANDLERS ===
+            const mobileSearchInput = document.getElementById('mobileSearchInput');
+
+            // Helper for mobile bottom nav active state
+            function setActiveNav(activeId) {
+                document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+                if (activeId) document.getElementById(activeId).classList.add('active');
+            }
+
+            // Close Menus
+            function closeMenu(menuId, unlock = true) {
+                const menu = document.getElementById(menuId);
+                if (!menu) return;
+
+                // Scroll reset
+                menu.scrollTop = 0;
+                const content = menu.querySelector('.modal-content');
+                if (content) content.scrollTop = 0;
+                const lists = menu.querySelectorAll('.scrollable-list');
+                lists.forEach(list => list.scrollTop = 0);
+
+                menu.classList.remove('show');
+                menu.classList.remove('active');
+
+                // Desktop Button states
+                document.getElementById('desktopFilterBtn')?.classList.remove('active');
+                document.getElementById('desktopSortBtn')?.classList.remove('active');
+
+
+                if (unlock) {
+                    setActiveNav(null);
+                    unlockBodyScroll();
+                }
+                // Desktop cleanup
+                document.getElementById('mobileSearchInputBar').classList.remove('active');
+            }
+
+            // 1. HOME (Reset)
+            const mobileHomeBtn = document.getElementById('mobileHomeBtn');
+            if (mobileHomeBtn) {
+                mobileHomeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+
+                    const sBar = document.getElementById('mobileSearchBtn');
+                    const filterMenu = document.getElementById('filterMenu');
+                    const sortMenu = document.getElementById('sortMenu');
+                    const settingsModal = document.getElementById('settingsModal');
+                    const detailsModal = document.getElementById('detailsModal');
+
+                    const searchOpen = sBar.classList.contains('active');
+                    const filterOpen = filterMenu.classList.contains('show');
+                    const sortOpen = sortMenu.classList.contains('show');
+                    const settingsOpen = settingsModal.classList.contains('active');
+                    const detailsOpen = detailsModal.classList.contains('active');
+
+                    // Close search, Menus, Modals
+                    if (searchOpen) { mobileSearchBar.classList.remove('active'); }
+                    if (filterOpen) { closeMenu('filterMenu', true); }
+                    if (sortOpen) { closeMenu('sortMenu', true); }
+                    if (settingsOpen) { closeSettings(true); }
+                    if (detailsOpen) { closeDetails(); }
+
+                    setActiveNav('mobileHomeBtn');
+
+                    // Trigger the same reset logic as the logo
+                    const logoBtn = document.getElementById('logoResetBtn');
+                    if (logoBtn) logoBtn.click();
+                    
+                    setActiveNav(null);
+                });
+            }
+
+            // 2. SEARCH (Toggle Bar)            
+            const mobileSearchBtn = document.getElementById('mobileSearchBtn');
+            if (mobileSearchBtn) {
+                mobileSearchBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+
+                    const isAlreadyOn = mobileSearchBar.classList.contains('active');
+
+                    const filterMenu = document.getElementById('filterMenu');
+                    const sortMenu = document.getElementById('sortMenu');
+                    const settingsModal = document.getElementById('settingsModal');
+                    const detailsModal = document.getElementById('detailsModal');
+
+                    const filterOpen = filterMenu.classList.contains('show');
+                    const sortOpen = sortMenu.classList.contains('show');
+                    const settingsOpen = settingsModal.classList.contains('active');
+                    const detailsOpen = detailsModal.classList.contains('active');
+
+                    if (!isAlreadyOn) {
+                        
+                        if (filterOpen) { closeMenu('filterMenu', true); }
+                        if (sortOpen) { closeMenu('sortMenu', true); }
+                        if (settingsOpen) { closeSettings(true); }
+                        if (detailsOpen) { closeDetails(); }
+
+                        mobileSearchBar.classList.add('active');
+                        setActiveNav('mobileSearchBtn');
+
+                        setTimeout(() => mobileSearchInput.focus(), 100);
+                    } else {
+                        mobileSearchBar.classList.remove('active');
+                        setActiveNav(null); 
+                    }
+                });
+                
+                // Sync Mobile Input with Desktop Input logic
+                mobileSearchInput.addEventListener('input', (e) => {
+                    // Update desktop input value (which is used by filterMedia)
+                    const desktopInput = document.getElementById('searchInput');
+                    if(desktopInput) {
+                        desktopInput.value = e.target.value;
+                        // Trigger the debounce logic you already have
+                        const event = new Event('input');
+                        desktopInput.dispatchEvent(event); 
+                    }
+                });
+            }
+
+            // 3. FILTER (Toggle Logic)
+            document.getElementById('mobileFilterBtn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                const menu = document.getElementById('filterMenu');
+                const isAlreadyOpen = menu.classList.contains('show');
+
+                const sortMenu = document.getElementById('sortMenu');
+                const sBar = document.getElementById('mobileSearchBtn');
+                const settingsModal = document.getElementById('settingsModal');
+                const detailsModal = document.getElementById('detailsModal');
+
+                const searchOpen = sBar.classList.contains('active');
+                const sortOpen = sortMenu.classList.contains('show');
+                const settingsOpen = settingsModal.classList.contains('active');
+                const detailsOpen = detailsModal.classList.contains('active');
+                
+
+                if (!isAlreadyOpen) {
+                    menu.classList.add('show');
+                    setActiveNav('mobileFilterBtn');
+                    lockBodyScroll();
+                    if (searchOpen) { mobileSearchBar.classList.remove('active'); }
+                    if (sortOpen) { closeMenu('sortMenu', false) }
+                    if (settingsOpen) { closeSettings(false); }
+                    if (detailsOpen) { closeDetails(); }
+                } else { closeMenu('filterMenu', true); }
+            });
+                
+            // 4. SORT (Toggle Logic)
+            document.getElementById('mobileSortBtn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                const menu = document.getElementById('sortMenu');
+                const isAlreadyOpen = menu.classList.contains('show');
+
+                const filterMenu = document.getElementById('filterMenu');
+                const sBar = document.getElementById('mobileSearchBtn');
+                const settingsModal = document.getElementById('settingsModal');
+                const detailsModal = document.getElementById('detailsModal');
+
+                const searchOpen = sBar.classList.contains('active');
+                const filterOpen = filterMenu.classList.contains('show');
+                const settingsOpen = settingsModal.classList.contains('active');
+                const detailsOpen = detailsModal.classList.contains('active');
+
+                if (!isAlreadyOpen) {
+                    menu.classList.add('show');
+                    setActiveNav('mobileSortBtn');
+                    lockBodyScroll();
+                    if (searchOpen) { mobileSearchBar.classList.remove('active'); }
+                    if (filterOpen) { closeMenu('filterMenu', false) }
+                    if (settingsOpen) { closeSettings(false); }
+                    if (detailsOpen) { closeDetails(); }
+                } else { closeMenu('sortMenu', true); }
+            });
+
+            // 5. SETTINGS (Toggle Logic)
+            // Desktop: Just open (Simple listener)
+            document.getElementById('desktopSettingsBtn')?.addEventListener('click', openSettings);
+
+            // Mobile: Toggle logic + Stop Propagation
+            document.getElementById('mobileSettingsBtn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const modal = document.getElementById('settingsModal');
+                const isAlreadyOpen = modal.classList.contains('active');
+
+                if (!isAlreadyOpen) {
+                    setActiveNav('mobileSettingsBtn');
+                    openSettings();
+                } else { 
+                    closeSettings(true);
+                }
+            });
+
+            function openSettings() { 
+                lockBodyScroll();
+
+                const filterOpen = document.getElementById('filterMenu').classList.contains('show');
+                const sortOpen = document.getElementById('sortMenu').classList.contains('show');
+                const searchOpen = document.getElementById('mobileSearchInputBar')?.classList.contains('active');
+                const detailsOpen = document.getElementById('detailsModal').classList.contains('active');
+                // Store the theme as it exists BEFORE the user starts clicking around
+                initialTheme = document.body.className.match(/theme-([^\s]+)/)?.[1] || 'dark';
+                tempTheme = initialTheme; // Reset temp choice
+                // Show Settings Modal
+                document.getElementById('settingsModal').classList.add('active');
+                // Close Filter & Sort Menus
+                if (filterOpen) { closeMenu('filterMenu', false); }
+                if (sortOpen) { closeMenu('sortMenu', false); }
+                if (searchOpen) { document.getElementById('mobileSearchInputBar').classList.remove('active'); }
+                if (detailsOpen) { closeDetails(); }
+
+            }
+
+            function closeSettings(unlock = true) { 
+                // Revert the body class to what it was when opening the modal
+                document.body.classList.remove('theme-dark', 'theme-light', 'theme-jellybrry');
+                document.body.classList.add(`theme-${initialTheme}`);
+                
+                // Also reset the radio button selection inside the modal to match the saved theme
+                const savedRadio = document.querySelector(`input[name="theme"][value="${initialTheme}"]`);
+                if (savedRadio) savedRadio.checked = true;
+
+                closeMenu('settingsModal', unlock);
+            }
+        
+            function openDetails(item) {
+                // Close mobile Search Bar & Menus
+                const searchOpen = mobileSearchBar.classList.contains('active');
+                const filterOpen = document.getElementById('filterMenu').classList.contains('show');
+                const sortOpen = document.getElementById('sortMenu').classList.contains('show');
+                if (searchOpen) { mobileSearchBar.classList.remove('active'); }
+                if (filterOpen) { closeMenu('filterMenu', false); }
+                if (sortOpen) { closeMenu('sortMenu', false); }
+
+                setActiveNav(null);
+
+                document.getElementById('detailsTitle').innerText = item.Name;
+                document.getElementById('detailsYear').innerText = item.ProductionYear || 'N/A';
+                document.getElementById('detailsOverview').innerText = item.Overview || 'No description available.';
+                document.getElementById('detailsPosterImg').src = item.PosterUrl;
+                
+                const libContainer = document.getElementById('detailsLibrary');
+                libContainer.innerHTML = '';
+
+                const rawLibs = (item.LibraryName || 'Unknown').split(/,\s*/);
+                // Filter empty strings
+                const libs = rawLibs.filter(l => l && l.trim().length > 0);
+
+                // Toggle Label Text: Library vs Libraries
+                const libLabel = document.getElementById('detailsLibraryLabel');
+                if (libLabel) {
+                    libLabel.innerText = libs.length > 1 ? 'Libraries:' : 'Library:';
+                }
+
+                libs.forEach(lib => {
+                    if (lib) {
+                        let span = document.createElement('span');
+                        span.className = 'library-chip';
+                        span.innerText = lib.trim();
+                        libContainer.appendChild(span);
+                        libContainer.appendChild(document.createTextNode(' '));
+                    }
+                });
+                
+                // --- COLLECTION BADGE LOGIC ---
+                const colBadge = document.getElementById('detailsCollectionBadge');
+                if (item.Collections && Array.isArray(item.Collections) && item.Collections.length > 0) {
+                    colBadge.innerText = item.Collections.join(", ");
+                    colBadge.style.display = 'flex';
+                } else {
+                    colBadge.style.display = 'none';
+                }
+
+                // --- MPA RATING LOGIC ---
+                const mpaRating = item.OfficialRating || 'NR';
+                const mpaBadge = document.getElementById('detailsMpaRating');
+                if (mpaBadge) {
+                    mpaBadge.innerText = mpaRating;
+                    
+                    // Logic: Hide if 'NR' or null, show otherwise
+                    // You can remove "|| mpaRating === 'NR'" if you WANT to see NR
+                    if (!mpaRating || mpaRating === 'NR') {
+                        mpaBadge.style.display = 'none';
+                    } else { mpaBadge.style.display = 'inline-flex'; }
+                }
+
+                // --- MEDIA TYPE LOGIC ---
+                const typeBadge = document.getElementById('detailsType');
+                typeBadge.innerText = item.Type;
+                typeBadge.classList.remove('badge-movie', 'badge-series');
+                if (item.Type === 'Movie' || item.Type === 'Video') typeBadge.classList.add('badge-movie');
+                else if (item.Type === 'Series') typeBadge.classList.add('badge-series');
+                
+                // --- GENRE LOGIC ---
+                const genreContainer = document.getElementById('detailsGenres');
+                genreContainer.innerHTML = ''; 
+                if (item.Genres && item.Genres.length > 0) {
+                    item.Genres.forEach(genre => {
+                        let span = document.createElement('span');
+                        span.className = 'genre-chip';
+                        span.innerText = genre;
+                        genreContainer.appendChild(span);
+                    });
+                } else genreContainer.innerText = 'No genres listed';
+                
+                // --- RUNTIME LOGIC ---
+                const runtimeBadge = document.getElementById('detailsRuntime');
+                if (runtimeBadge) {
+                    if (item.RunTimeTicks && item.RunTimeTicks > 0) {
+                        let minutes = Math.floor(item.RunTimeTicks / 10000000 / 60);
+                        let runtimeText = minutes > 60 ? Math.floor(minutes/60) + "h " + (minutes%60) + "m" : minutes + "m";
+                        runtimeBadge.innerText = runtimeText;
+                        runtimeBadge.style.display = 'inline-flex';
+                    } else { runtimeBadge.style.display = 'none'; }
+                }
+                /*let runtime = "N/A";
+                if (item.RunTimeTicks) {
+                    let minutes = Math.floor(item.RunTimeTicks / 10000000 / 60);
+                    runtime = minutes > 60 ? Math.floor(minutes/60) + "h " + (minutes%60) + "m" : minutes + "m";
+                }
+                document.getElementById('detailsRuntime').innerText = runtime;*/
+
+
+                document.getElementById('detailsRating').innerHTML = `<i class="fas fa-star"></i> ${item.CommunityRating ? item.CommunityRating.toFixed(1) : 'N/A'}`;
+
+                // --- BACKDROP IMG ---
+                const backdropDiv = document.getElementById('detailsBackdrop');
+                backdropDiv.style.backgroundImage = item.BackdropUrl ? `url('${item.BackdropUrl}')` : 'none';
+                backdropDiv.style.backgroundColor = item.BackdropUrl ? 'transparent' : '#111';
+
+                document.getElementById('detailsModal').classList.add('active');
+                lockBodyScroll();
+            }
+
+            function closeDetails() {
+                const modal = document.getElementById('detailsModal');
+                const content = modal.querySelector('.details-content');
+                if (content) content.scrollTop = 0;
+
+                modal.classList.remove('active');
+                unlockBodyScroll();
+            }
+        
+            // === THEME RADIO LISTENER (Preview - no save)
+            document.querySelectorAll('input[name="theme"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const selectedTheme = e.target.value;
+                    tempTheme = selectedTheme;
+
+                    document.body.classList.remove('theme-dark', 'theme-light', 'theme-jellybrry');
+                    document.body.classList.add(`theme-${selectedTheme}`);
+
+                    const hiddenInput = document.getElementById('hiddenThemeInput');
+                    if (hiddenInput) hiddenInput.value = selectedTheme;
+                });
+            });
+
+            // === ADMIN FORM SYNC
+            const adminForm = document.querySelector('form[action*="update_settings"]');
+            if (adminForm) {
+                adminForm.addEventListener('submit', () => {
+                    const hiddenInput = document.getElementById('hiddenThemeInput');
+                    if (hiddenInput && hiddenInput.value) {
+                        localStorage.setItem('user_theme', hiddenInput.value);
+                    }
+                });
+            }
+
+            // === GUEST SAVE BUTTON (Commit theme)
+            const guestSaveBtn = document.getElementById('guestSaveBtn');
+            if (guestSaveBtn) {
+                guestSaveBtn.addEventListener('click', () => {
+                    if (tempTheme) {
+                        localStorage.setItem('user_theme', tempTheme);
+                        initialTheme = tempTheme;
+                    }
+                    closeSettings(true);
+                });
+            }
+        
+        });
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
+        let currentSortState = { criteria: 'title', order: 'asc' };
+        let currentGroupState = null;
+
+        function cleanTitle(title) {
+            if (!title) return "";
+            return title.toLowerCase().replace(/^(the|a|an)\s+/i, "").trim();
+        }
+
+        function applySort() {
+            const grid = document.getElementById('main-grid');
+            const groupedView = document.getElementById('grouped-view');
+            const { criteria, order } = currentSortState;
+            
+            const sortFn = (a, b) => {
+                const itemA = JSON.parse(a.element.getAttribute('data-item'));
+                const itemB = JSON.parse(b.element.getAttribute('data-item'));
+                let valA, valB;
+                switch (criteria) {
+                    case 'title':
+                        valA = cleanTitle(itemA.Name); valB = cleanTitle(itemB.Name);
+                        if (valA < valB) return order === 'asc' ? -1 : 1;
+                        if (valA > valB) return order === 'asc' ? 1 : -1;
+                        return 0;
+                    case 'year': valA = itemA.ProductionYear || 0; valB = itemB.ProductionYear || 0; break;
+                    case 'runtime':
+                        const getRuntime = (i) => i.RunTimeTicks || (i.Type === 'Series' ? 27000000000 : 54000000000);
+                        valA = getRuntime(itemA); valB = getRuntime(itemB); break;
+                    case 'rating': valA = itemA.CommunityRating || 0; valB = itemB.CommunityRating || 0; break;
+                    case 'date': valA = new Date(itemA.DateCreated || 0).getTime(); valB = new Date(itemB.DateCreated || 0).getTime(); break;
+                }
+                return order === 'asc' ? valA - valB : valB - valA;
+            };
+
+            if (currentGroupState) {
+                document.getElementById('loadMoreContainer').style.display = 'none';
+                grid.style.display = 'none';
+                groupedView.style.display = 'block';
+                groupedView.innerHTML = ''; 
+
+                const groups = {};
+                currentFilteredItems.forEach(item => {
+                    const originalData = JSON.parse(item.element.getAttribute('data-item'));
+                    let keys = [];
+                    if (currentGroupState === 'genre') keys = originalData.Genres && originalData.Genres.length ? originalData.Genres : ['Uncategorized'];
+                    else if (currentGroupState === 'library') keys = originalData.LibraryName ? originalData.LibraryName.split(', ') : ['Unknown'];
+                    else if (currentGroupState === 'collection') keys = originalData.Collections && originalData.Collections.length ? originalData.Collections : [];
+
+                    keys.forEach(key => {
+                        const k = key.trim();
+                        if (!groups[k]) groups[k] = [];
+                        const clone = item.element.cloneNode(true);
+                        clone.style.display = ''; 
+                        groups[k].push({ element: clone });
+                    });
+                });
+
+                const sortedKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+                if (sortedKeys.length === 0) {
+                     groupedView.innerHTML = '<div class="no-results" style="padding: 2rem; text-align: center; color: var(--text-sub);">No items match current filters.</div>';
+                     return;
+                }
+
+                sortedKeys.forEach(key => {
+                    const section = document.createElement('div');
+                    section.className = 'group-section';
+                    const header = document.createElement('h3');
+                    header.className = 'group-header';
+                    header.innerText = key;
+                    section.appendChild(header);
+                    const scrollContainer = document.createElement('div');
+                    scrollContainer.className = 'horizontal-scroll-container';
+                    
+                    // Sort within group using the universal sortFn
+                    groups[key].sort(sortFn);
+
+                    groups[key].forEach(wrapper => scrollContainer.appendChild(wrapper.element));
+                    section.appendChild(scrollContainer);
+                    groupedView.appendChild(section);
+                });
+            } else {
+                groupedView.style.display = 'none';
+                grid.style.display = 'grid'; 
+                currentFilteredItems.sort(sortFn);
+                currentPage = 1; 
+                renderPagination();
+            }
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = "";
+            document.querySelectorAll('.filter-checkbox').forEach(cb => cb.checked = false);
+            currentAlphaFilter = null;
+            document.querySelectorAll('.alpha-item').forEach(i => i.classList.remove('active'));
+            filterMedia(false);
+        }
+        
+        // --- HELPER FUNCTIONS ---
+        function toggleInput(id, icon) {
+            const input = document.getElementById(id);
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = "password";
+                icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye');
+            }
+        }
+
+        let currentAlphaFilter = null;
+        function setupAlphaSidebar() {
+            const desktopContainer = document.getElementById('alphaSidebar');
+            const mobileContainer = document.getElementById('mobileAlphaInputs');
+            const chars = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+            const createButton = (char, container) => {
+                const el = document.createElement('div');
+                el.className = 'alpha-item';
+                el.innerText = char;
+
+                el.onclick = (e) => {
+                    e.stopPropagation();
+
+                    const allItems = document.querySelectorAll('.alpha-item');
+                    if (currentAlphaFilter === char) {
+                        currentAlphaFilter = null;
+                        allItems.forEach(i => i.classList.remove('active'));
+                    } else {
+                        currentAlphaFilter = char;
+                        allItems.forEach(i => {
+                            if(i.innerText === char) {
+                                i.classList.add('active');
+                            } else { i.classList.remove('active'); }
+                        });
+                    }
+                    filterMedia(false);
+                };
+                container.appendChild(el);
+            };
+
+            if (desktopContainer) {
+                desktopContainer.innerHTML = '';
+                chars.forEach(c => createButton(c, desktopContainer));
+            }
+
+            if (mobileContainer) {
+                mobileContainer.innerHTML = '';
+                chars.forEach(c => createButton(c, mobileContainer));
+            }
+        }
+
+        function toggleColumn(containerId, state) {
+            let container = document.getElementById(containerId);
+            if(container) {
+                container.querySelectorAll('input[type="checkbox"]').forEach(input => input.checked = state);
+                filterMedia(false);
+            }
+        }
+
+        function filterMedia(skipSort = false) {
+            let textFilter = document.getElementById('searchInput').value.toLowerCase();
+            currentPage = 1;
+            
+            const getFilterState = (id) => {
+                const container = document.getElementById(id);
+                // === SAFETY CHECK: If container is missing, return "Select All" state ===
+                if (!container) return { selected: [], isAll: true, isNone: false };
+                
+                const all = Array.from(container.querySelectorAll('input[type="checkbox"]'));
+                const checked = all.filter(cb => cb.checked).map(cb => cb.value.trim().toLowerCase());
+                return { selected: checked, isAll: checked.length === all.length, isNone: checked.length === 0 };
+            };
+
+            const typeState = getFilterState('typeInputs');
+            if(typeState.selected.includes('movie')) typeState.selected.push('video');
+            const libState = getFilterState('libInputs');
+            const genreState = getFilterState('genreInputs');
+            const collectionState = getFilterState('collectionInputs');
+            
+            currentFilteredItems = [];
+            for (let item of mediaCache) {
+                item.element.style.display = "none";
+                let matchesText = item.title.indexOf(textFilter) > -1;
+                let matchesType = typeState.isAll || typeState.isNone || typeState.selected.includes(item.type);
+                let matchesLib = libState.isAll || libState.isNone || libState.selected.some(l => item.library.includes(l));
+                let matchesGenre = genreState.isAll || genreState.isNone || genreState.selected.some(g => item.genres.includes(g));
+                let matchesCollection = collectionState.isAll || collectionState.isNone || (item.collections && collectionState.selected.some(c => item.collections.includes(c)));
+                
+                let matchesAlpha = true;
+                if (currentAlphaFilter) {
+                    const cleanT = cleanTitle(item.title);
+                    matchesAlpha = currentAlphaFilter === '#' ? /^[^a-z]/i.test(cleanT) : cleanT.startsWith(currentAlphaFilter.toLowerCase());
+                }
+
+                if (matchesText && matchesType && matchesLib && matchesGenre && matchesCollection && matchesAlpha) currentFilteredItems.push(item);
+            }
+
+            document.querySelectorAll('.count').forEach(el => {
+                el.innerText = currentFilteredItems.length + " results";
+            });
+            document.getElementById('main-header').style.display = currentFilteredItems.length === 0 ? 'none' : '';
+            if (!skipSort) applySort(); else renderPagination();
+        }
+
+        function renderPagination() {
+            currentFilteredItems.forEach(item => item.element.style.display = 'none');
+            const limit = currentPage * ITEMS_PER_PAGE;
+            const itemsToShow = currentFilteredItems.slice(0, limit);
+            const grid = document.getElementById('main-grid');
+            itemsToShow.forEach(item => { item.element.style.display = ''; grid.appendChild(item.element); });
+            document.getElementById('loadMoreContainer').style.display = currentFilteredItems.length > limit ? 'flex' : 'none';
+        }
+    </script>
+</body>
+</html>

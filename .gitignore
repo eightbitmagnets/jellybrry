@@ -1,0 +1,21 @@
+# Python / Flask garbage
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+.env
+
+# MacOS garbage
+.DS_Store
+
+# SECURITY: Do not upload your personal settings!
+config/settings.json
+instance/
+
+# Cache Files
+config/library_cache_*.json
+
+# If you use an IDE (VS Code, PyCharm)
+.vscode/
+.idea/
