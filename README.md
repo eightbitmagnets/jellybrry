@@ -49,24 +49,25 @@ Designed to help you and your users browse your Jellyfin library with search, so
 ### Desktop Dashboard & Settings
 ![Desktop Dashboard](screenshots/desktop_jellybrry.png)
 ![Desktop Details](screenshots/desktop_details.png)
-<p float="left">
+<p align="center">
   <img src="screenshots/desktop_guest-settings.png" height="500" />
+   &nbsp;
   <img src="screenshots/desktop_admin-settings.png" height="500" />
 </p>  
 
 ### Themes
-<p float="left">
-  <img src="screenshots/desktop_dark.png" width="300" />
-  <img src="screenshots/desktop_light.png" width="300" />
-  <img src="screenshots/desktop_jellybrry.png" width="300" />
+<p align="center">
+  <img src="screenshots/desktop_dark.png" width="33%" />
+  <img src="screenshots/desktop_light.png" width="33%" />
+  <img src="screenshots/desktop_jellybrry.png" width="33%" />
 </p>
 
 ### Mobile
-<p float="left">
-  <img src="screenshots/mobile_jellybrry.png" width="225" />
-  <img src="screenshots/mobile_description.png" width="225" />
-  <img src="screenshots/mobile_filter.png" width="225" />
-  <img src="screenshots/mobile_sort.png" width="225" />
+<p align="center">
+  <img src="screenshots/mobile_jellybrry.png" width="24.5%" />
+  <img src="screenshots/mobile_description.png" width="24.5%" />
+  <img src="screenshots/mobile_filter.png" width="24.5%" />
+  <img src="screenshots/mobile_sort.png" width="24.5%" />
 </p>
 
 **License:** GNU General Public License v3.0
