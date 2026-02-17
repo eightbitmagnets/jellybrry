@@ -13,6 +13,10 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)  # For session management
 app.permanent_session_lifetime = timedelta(days=7)
 
+@app.context_processor
+def inject_version():
+    return dict(version=os.environ.get('VERSION', 'dev-build'))
+
 # === Configuration Paths ===
 CONFIG_DIR = "/config"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")

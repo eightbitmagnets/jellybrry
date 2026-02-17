@@ -1,5 +1,8 @@
 FROM python:3.9-slim
 
+ARG VERSION
+ENV VERSION=$VERSION
+
 WORKDIR /app
 
 # Copy requirements first for cache efficiency
