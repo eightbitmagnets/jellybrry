@@ -18,4 +18,4 @@ config/library_cache_*.json
 
 .vscode/
 .idea/
-docker-compose.dev.yml
+docker-compose.override.yml

@@ -203,7 +203,7 @@ def get_collection_map(url, headers, user_id):
                 app.logger.info(f"!!! DEBUG: Collection '{boxset_name}' ({boxset_id}) has {len(children)} items.")
                 for child in children:
                     collection_map[child['Id']].append(boxset_name)
-                        
+
     except Exception as e:
         app.logger.error(f"!!! DEBUG ERROR: {e}")
     
