@@ -245,11 +245,11 @@ def fetch_library(force_refresh=False):
             "SortOrder": "Ascending",
             "IncludeItemTypes": "Movie,Series,Video,Boxset",
             "Recursive": "true",
-            "Fields": "PrimaryImageAspectRatio,SeriesName,SeasonNumber,IndexNumber,Genres,ProductionYear,Overview,CommunityRating,OfficialRating,RunTimeTicks,ProviderIds,RecursiveItemCount,ChildCount,BackdropImageTags,DateCreated,Collections,People,MediaSources,Path,Chapters",
+            "Fields": "PrimaryImageAspectRatio,SeriesName,SeasonNumber,IndexNumber,Genres,ProductionYear,Overview,CommunityRating,OfficialRating,RunTimeTicks,ProviderIds,RecursiveItemCount,ChildCount,BackdropImageTags,DateCreated,Collections",
             "ParentId": lib_id,
             "UserID": user_id
         }
-        
+        # REMOVED People,MediaSources,Path FROM FIELDS
         try:
             r = requests.get(f"{url}/Users/{user_id}/Items", headers=headers, params=params)
             print(f"DEBUG: Jellyfin returned status {r.status_code}")
@@ -331,6 +331,29 @@ def proxy_image():
     except Exception as e:
         return str(e), 500
 
+# Lazy Load People, MediaSources, Path
+@app.route('/api/item/<item_id>')
+def get_item_details(item_id):
+    config = load_config()
+    if not config:
+        return {"error": "No config"}, 400
+    
+    url = config['jellyfin_url']
+    headers = get_jellyfin_headers(config['api_key'])
+    user_id = config.get('user_id')
+
+    # Lazy load time-suckers
+    params = {"Fields": "People,MediaSources,Path"}
+
+    try:
+        r = requests.get(f"{url}/Users/{user_id}/Items/{item_id}", headers=headers, params=params)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+
+    return {"error": "Failed to fetch details"}, 500
+
 @app.route('/')
 def index():
     config = load_config()
@@ -369,51 +392,6 @@ def index():
     for item in items:
         if query and query not in item.get('Name', '').lower():
             continue
-
-        # Get Director / Creator
-        people = item.get('People', [])
-
-        directors = [p['Name'] for p in people if p.get('Type') == 'Director']
-        item['Director'] = ", ".join(directors) if directors else None
-
-        creators = [p['Name'] for p in people if p.get('Type') == 'Creator']
-        item['Creator'] = ", ".join(creators) if creators else None
-
-        # Get Actors
-        actors_list = [p for p in people if p.get('Type') == 'Actor']
-        actors_list.sort(key=lambda x: x.get('SortOrder', 999))
-
-        cast_list = []
-        for p in actors_list[:12]:
-            cast_list.append({
-                'Name': p.get('Name'),
-                'Role': p.get('Role', ''),
-                'Id': p.get('Id'),
-                'ImageTag': p.get('PrimaryImageTag')
-            })
-
-        item['Cast'] = cast_list
-
-        # Get Tech Specs
-        tech_data = {
-            'Size': 'Unknown',
-            'Container': 'Unknown',
-            'Codec': 'Unknown',
-            'Resolution': 'Unknown'
-        }
-
-        media_sources = item.get('MediaSources', [])
-        if media_sources:
-            source = media_sources[0]
-            size_gb = round(source.get('Size', 0) / (1024**3), 2)
-            tech_data['Size'] = f"{size_gb} GB"
-            tech_data['Container'] = source.get('Container', 'Unknown')
-
-            video_stream = next((s for s in source.get('MediaStreams', []) if s.get('Type') == 'Video'), {})
-            tech_data['Codec'] = video_stream.get('Codec', '').upper()
-            tech_data['Resolution'] = f"{video_stream.get('Width', '?')}x{video_stream.get('Height', '?')}"
-
-        item['TechData'] = tech_data
         
         # Primary Image - Optimized for Grid
         item['PosterUrl'] = url_for('proxy_image', path=f"/Items/{item['Id']}/Images/Primary", fillWidth=320, quality=90)

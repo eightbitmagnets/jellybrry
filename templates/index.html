@@ -1142,8 +1142,8 @@
                 closeMenu('settingsModal', unlock);
             }
         
-            function openDetails(item) {
-                // Close mobile Search Bar & Menus
+            async function openDetails(item) {
+                // --- 1. CLOSE MENUS & SEARCH ---
                 const searchOpen = mobileSearchBar.classList.contains('active');
                 const filterOpen = document.getElementById('filterMenu').classList.contains('show');
                 const sortOpen = document.getElementById('sortMenu').classList.contains('show');
@@ -1153,34 +1153,18 @@
 
                 setActiveNav(null);
 
+                // --- 2. INSTANT UI UPDATES (The fast stuff) ---
                 document.getElementById('detailsTitle').innerText = item.Name;
                 document.getElementById('detailsYear').innerText = item.ProductionYear || 'N/A';
                 document.getElementById('detailsOverview').innerText = item.Overview || 'No description available.';
                 document.getElementById('detailsPosterImg').src = item.PosterUrl;
 
-                // Populate Director or Creator
-                const dirDiv = document.getElementById('detailsDirector');
-                if (item.Creator) {
-                    dirDiv.innerHTML = `<strong>Created by:</strong> <span style="color: var(--text-main);">${item.Creator}</span>`;
-                    dirDiv.style.display = 'block';
-                } else if (item.Director) {
-                    dirDiv.innerHTML = `<strong>Directed by:</strong> <span style="color: var(--text-main);">${item.Director}</span>`;
-                    dirDiv.style.display = 'block';
-                } else { dirDiv.style.display = 'none'; }
-                
                 const libContainer = document.getElementById('detailsLibrary');
                 libContainer.innerHTML = '';
-
                 const rawLibs = (item.LibraryName || 'Unknown').split(/,\s*/);
-                // Filter empty strings
                 const libs = rawLibs.filter(l => l && l.trim().length > 0);
-
-                // Toggle Label Text: Library vs Libraries
                 const libLabel = document.getElementById('detailsLibraryLabel');
-                if (libLabel) {
-                    libLabel.innerText = libs.length > 1 ? 'Libraries:' : 'Library:';
-                }
-
+                if (libLabel) libLabel.innerText = libs.length > 1 ? 'Libraries:' : 'Library:';
                 libs.forEach(lib => {
                     if (lib) {
                         let span = document.createElement('span');
@@ -1190,8 +1174,7 @@
                         libContainer.appendChild(document.createTextNode(' '));
                     }
                 });
-                
-                // --- COLLECTION BADGE LOGIC ---
+
                 const colBadge = document.getElementById('detailsCollectionBadge');
                 if (item.Collections && Array.isArray(item.Collections) && item.Collections.length > 0) {
                     colBadge.innerText = item.Collections.join(", ");
@@ -1200,26 +1183,21 @@
                     colBadge.style.display = 'none';
                 }
 
-                // --- MPA RATING LOGIC ---
                 const mpaRating = item.OfficialRating || 'NR';
                 const mpaBadge = document.getElementById('detailsMpaRating');
                 if (mpaBadge) {
                     mpaBadge.innerText = mpaRating;
-                    // Logic: Hide if 'NR' or null, show otherwise
-                    // You can remove "|| mpaRating === 'NR'" if you WANT to see NR
                     if (!mpaRating || mpaRating === 'NR') {
                         mpaBadge.style.display = 'none';
                     } else { mpaBadge.style.display = 'inline-flex'; }
                 }
 
-                // --- MEDIA TYPE LOGIC ---
                 const typeBadge = document.getElementById('detailsType');
                 typeBadge.innerText = item.Type;
                 typeBadge.classList.remove('badge-movie', 'badge-series');
                 if (item.Type === 'Movie' || item.Type === 'Video') typeBadge.classList.add('badge-movie');
                 else if (item.Type === 'Series') typeBadge.classList.add('badge-series');
-                
-                // --- GENRE LOGIC ---
+
                 const genreContainer = document.getElementById('detailsGenres');
                 genreContainer.innerHTML = ''; 
                 if (item.Genres && item.Genres.length > 0) {
@@ -1230,8 +1208,7 @@
                         genreContainer.appendChild(span);
                     });
                 } else genreContainer.innerText = 'No genres listed';
-                
-                // --- RUNTIME LOGIC ---
+
                 const runtimeBadge = document.getElementById('detailsRuntime');
                 if (runtimeBadge) {
                     if (item.RunTimeTicks && item.RunTimeTicks > 0) {
@@ -1244,149 +1221,123 @@
 
                 document.getElementById('detailsRating').innerHTML = `<i class="fas fa-star"></i> ${item.CommunityRating ? item.CommunityRating.toFixed(1) : 'N/A'}`;
 
-                // --- BACKDROP IMG ---
                 const backdropDiv = document.getElementById('detailsBackdrop');
                 backdropDiv.style.backgroundImage = item.BackdropUrl ? `url('${item.BackdropUrl}')` : 'none';
                 backdropDiv.style.backgroundColor = item.BackdropUrl ? 'transparent' : '#111';
 
+                // Open Modal visually before fetching heavy stuff
                 document.getElementById('detailsModal').classList.add('active');
                 lockBodyScroll();
 
-                // --- POPULATE & TOGGLE TECH SPECS
+                // --- 3. SET UP SPINNERS ---
+                const dirDiv = document.getElementById('detailsDirector');
+                dirDiv.innerHTML = `<span style="color: var(--text-sub);"><i class="fas fa-spinner fa-spin"></i> Loading...</span>`;
+                dirDiv.style.display = 'block';
+
                 const techBox = document.getElementById('techInfoBox');
                 const scrollArea = techBox.querySelector('.tech-scroll-area');
-                //techBox.style.display = '';
-                /* ===== DELETE IF WORKING
-                if (item.MediaSources && item.MediaSources.length > 0) {
-                    const source = item.MediaSources[0];
+                scrollArea.innerHTML = `<div class="tech-group"><span style="color:var(--text-sub)"><i class="fas fa-spinner fa-spin"></i> Loading details...</span></div>`;
 
-                    // 1. VIDEO
-                    const videoStream = source.MediaStreams?.find(s => s.Type === 'Video') || {};
-                    const res = (videoStream.Width && videoStream.Height) ? `${videoStream.Width}x${videoStream.Height}` : 'Unknown';
-                    const codec = (videoStream.Codec || 'Unknown').toUpperCase();
-                    const bitDepth = videoStream.BitDepth ? `${videoStream.BitDepth}-bit` : '8-bit';
-                    // We use <br> here to push the info to the next line below your <strong> headers
-                    document.getElementById('videoInfo').innerHTML = `${res}<br>${codec}<br>${bitDepth}`;
+                // --- 4. LAZY LOAD HEAVY DATA ---
+                try {
+                    const response = await fetch(`/api/item/${item.Id}`);
+                    const extraData = await response.json();
 
-                    // 2. AUDIO (Loops and maps to a clean list)
-                    const audioStreams = source.MediaStreams?.filter(s => s.Type === 'Audio') || [];
-                    document.getElementById('audioList').innerHTML = audioStreams.length > 0 
-                        ? audioStreams.map(a => `${a.Language || 'Und'} (${(a.Codec || '').toUpperCase()}) ${a.Title ? '&bull; ' + a.Title : ''}`).join('<br>')
-                        : '<br>None';
+                    // Populate Creator/Director
+                    const people = extraData.People || [];
+                    const creators = people.filter(p => p.Type === 'Creator').map(p => p.Name);
+                    const directors = people.filter(p => p.Type === 'Director').map(p => p.Name);
 
-                    // 3. SUBTITLES
-                    const subStreams = source.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
-                    document.getElementById('subtitleList').innerHTML = subStreams.length > 0
-                        ? subStreams.map(s => `${s.Language || 'Und'} ${s.Title ? '(' + s.Title + ')' : ''}`).join(' &bull; ')
-                        : '<br>None';
+                    if (creators.length > 0) {
+                        dirDiv.innerHTML = `<strong>Created by:</strong> <span style="color: var(--text-main);">${creators.join(', ')}</span>`;
+                    } else if (directors.length > 0) {
+                        dirDiv.innerHTML = `<strong>Directed by:</strong> <span style="color: var(--text-main);">${directors.join(', ')}</span>`;
+                    } else {
+                        dirDiv.style.display = 'none';
+                    }
 
-                    // 4. FILE INFO
-                    const sizeGB = source.Size ? (source.Size / (1024 ** 3)).toFixed(2) + ' GB' : 'Unknown Size';
-                    const rawPath = source.Path || 'Path Unavailable';
-                    const formattedPath = rawPath.replace(/([/\\])/g, '$1<wbr>');
-                    document.getElementById('fileInfo').innerHTML = `${(source.Container || 'Unknown').toUpperCase()}<br>${sizeGB}`;
-                    document.getElementById('filePath').innerHTML = formattedPath;
-                } else {
-                    document.getElementById('videoInfo').innerHTML = "<br><span style='color:var(--text-sub)'>No details available.</span>";
-                    document.getElementById('audioList').innerHTML = "";
-                    document.getElementById('subtitleList').innerHTML = "";
-                    document.getElementById('fileInfo').innerHTML = "";
-                    document.getElementById('filePath').innerText = "";
-                } ==== END NEW DELETE IF WORKING */
-                // === NEW NEW NEW - DELETE COMMENTS IF WORKING
-                if (item.Type === 'Series') {
-                    // --- SERIES TOOLTIP LAYOUT ---
-                    const seasons = item.ChildCount ? item.ChildCount : 'Unknown';
-                    const episodes = item.RecursiveItemCount ? item.RecursiveItemCount : 'Unknown';
-                    const sPath = item.Path ? item.Path.replace(/([/\\])/g, '$1<wbr>') : 'Path unavailable';
-                    
-                    scrollArea.innerHTML = `
-                        <div class="tech-group">
-                            <strong>SERIES INFO</strong>
-                            Seasons: ${seasons}<br>
-                            Episodes: ${episodes}
-                        </div>
-                        <div class="tech-group">
-                            <strong>PATH</strong>
-                            <div class="tech-path-text">${sPath}</div>
-                        </div>
-                    `;
-                } else if (item.MediaSources && item.MediaSources.length > 0) {
-                    // --- MOVIE TOOLTIP LAYOUT ---
-                    const source = item.MediaSources[0];
-                    
-                    // Video
-                    const videoStream = source.MediaStreams?.find(s => s.Type === 'Video') || {};
-                    const res = (videoStream.Width && videoStream.Height) ? `${videoStream.Width}x${videoStream.Height}` : 'Unknown';
-                    const codec = (videoStream.Codec || 'Unknown').toUpperCase();
-                    const bitDepth = videoStream.BitDepth ? `${videoStream.BitDepth}-bit` : '8-bit';
-                    
-                    // Audio & Subs
-                    const audioStreams = source.MediaStreams?.filter(s => s.Type === 'Audio') || [];
-                    const audioHTML = audioStreams.length > 0 
-                        ? audioStreams.map(a => `${a.Language || 'Und'} (${(a.Codec || '').toUpperCase()}) ${a.Title ? '- ' + a.Title : ''}`).join('<br>')
-                        : 'None';
+                    // Populate Tooltip
+                    if (item.Type === 'Series') {
+                        const seasons = item.ChildCount ? item.ChildCount : 'Unknown';
+                        const episodes = item.RecursiveItemCount ? item.RecursiveItemCount : 'Unknown';
+                        const sPath = item.Path ? item.Path.replace(/([/\\])/g, '$1<wbr>') : 'Path unavailable';
+                        
+                        scrollArea.innerHTML = `
+                            <div class="tech-group">
+                                <strong>SERIES INFO</strong>
+                                Seasons: ${seasons}<br>
+                                Episodes: ${episodes}
+                            </div>
+                            <div class="tech-group">
+                                <strong>PATH</strong>
+                                <div class="tech-path-text">${sPath}</div>
+                            </div>
+                        `;
+                    } else if (extraData.MediaSources && extraData.MediaSources.length > 0) {
+                        const source = extraData.MediaSources[0];
+                        
+                        const videoStream = source.MediaStreams?.find(s => s.Type === 'Video') || {};
+                        const res = (videoStream.Width && videoStream.Height) ? `${videoStream.Width}x${videoStream.Height}` : 'Unknown';
+                        const codec = (videoStream.Codec || 'Unknown').toUpperCase();
+                        const bitDepth = videoStream.BitDepth ? `${videoStream.BitDepth}-bit` : '8-bit';
+                        
+                        const audioStreams = source.MediaStreams?.filter(s => s.Type === 'Audio') || [];
+                        const audioHTML = audioStreams.length > 0 
+                            ? audioStreams.map(a => `${a.Language || 'Und'} (${(a.Codec || '').toUpperCase()}) ${a.Title ? '- ' + a.Title : ''}`).join('<br>')
+                            : 'None';
 
-                    const subStreams = source.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
-                    const subHTML = subStreams.length > 0
-                        ? subStreams.map(s => `${s.Language || 'Und'} ${s.Title ? '(' + s.Title + ')' : ''}`).join(' &bull; ')
-                        : 'None';
+                        const subStreams = source.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
+                        const subHTML = subStreams.length > 0
+                            ? subStreams.map(s => `${s.Language || 'Und'} ${s.Title ? '(' + s.Title + ')' : ''}`).join(' &bull; ')
+                            : 'None';
 
-                    // File
-                    const sizeGB = source.Size ? (source.Size / (1024 ** 3)).toFixed(2) + ' GB' : 'Unknown Size';
-                    const pathHTML = source.Path ? source.Path.replace(/([/\\])/g, '$1<wbr>') : 'Path unavailable';
+                        const sizeGB = source.Size ? (source.Size / (1024 ** 3)).toFixed(2) + ' GB' : 'Unknown Size';
+                        const pathHTML = source.Path ? source.Path.replace(/([/\\])/g, '$1<wbr>') : 'Path unavailable';
 
-                    // Inject the Movie HTML
-                    // Note: We use <span id="audioList"> here so your CSS capitalization rule still works!
-                    scrollArea.innerHTML = `
-                        <div class="tech-group">
-                            <strong>VIDEO</strong>
-                            ${res}<br>${codec}<br>${bitDepth}
-                        </div>
-                        <div class="tech-group">
-                            <strong>AUDIO</strong>
-                            <span id="audioList">${audioHTML}</span>
-                        </div>
-                        <div class="tech-group">
-                            <strong>SUBTITLES</strong>
-                            <span id="subtitleList">${subHTML}</span>
-                        </div>
-                        <div class="tech-group">
-                            <strong>FILE</strong>
-                            ${(source.Container || 'Unknown').toUpperCase()}<br>${sizeGB}<br>
-                            <div class="tech-path-text">${pathHTML}</div>
-                        </div>
-                    `;
-                } else {
-                    // Fallback
-                    scrollArea.innerHTML = "<div class='tech-group'><span style='color:var(--text-sub)'>No details available.</span></div>";
+                        scrollArea.innerHTML = `
+                            <div class="tech-group">
+                                <strong>VIDEO</strong>
+                                ${res}<br>${codec}<br>${bitDepth}
+                            </div>
+                            <div class="tech-group">
+                                <strong>AUDIO</strong>
+                                <span id="audioList">${audioHTML}</span>
+                            </div>
+                            <div class="tech-group">
+                                <strong>SUBTITLES</strong>
+                                <span id="subtitleList">${subHTML}</span>
+                            </div>
+                            <div class="tech-group">
+                                <strong>FILE</strong>
+                                ${(source.Container || 'Unknown').toUpperCase()}<br>${sizeGB}<br>
+                                <div class="tech-path-text">${pathHTML}</div>
+                            </div>
+                        `;
+                    } else {
+                        scrollArea.innerHTML = "<div class='tech-group'><span style='color:var(--text-sub)'>No details available.</span></div>";
+                    }
+                } catch (error) {
+                    dirDiv.style.display = 'none';
+                    scrollArea.innerHTML = "<div class='tech-group'><span style='color:var(--rgb-danger)'>Failed to load details.</span></div>";
                 }
-                // === END NEW NEW NEW - DELETE COMMENTS IF WORKING
 
-                // Click Listener
+                // --- 5. THE TOOLTIP TELEPORTER ---
                 const techBtn = document.getElementById('btnTechInfo');
                 if (techBtn) {
                     techBtn.onclick = (e) => {
                         e.stopPropagation();
 
-                        const isHidden = techBox.style.display == 'none' || techBox.style.display === '';
+                        const isHidden = techBox.style.display === 'none' || techBox.style.display === '';
 
                         if (isHidden) {
-                            // 1. Teleport to body to escape the modal's clipping
                             document.body.appendChild(techBox);
-
-                            // 2. Make it visible so we can measure it
                             techBox.style.display = 'block';
                             techBox.style.position = 'fixed';
-                            techBox.style.zIndex = '99999';
+                            techBox.style.zIndex = '999999';
 
-                            // 3. Calculate exactly where the button is on screen
                             const rect = techBtn.getBoundingClientRect();
-
-                            // 4. Position it just below the button
                             techBox.style.top = (rect.bottom + 12) + 'px';
 
-                            // 5. Center it horizontally on the button, but keep it on screen
                             let calcLeft = rect.left + (rect.width / 2) - (techBox.offsetWidth / 2);
                             if (calcLeft < 10) calcLeft = 10;
                             if (calcLeft + techBox.offsetWidth > window.innerWidth - 10) {
@@ -1394,8 +1345,6 @@
                             }
                             techBox.style.left = calcLeft + 'px';
                         } else { techBox.style.display = 'none'; }
-
-                        //techBox.style.display = (techBox.style.display === 'none' || techBox.style.display === '') ? 'block' : 'none';
                     };
                 }
             }
