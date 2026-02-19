@@ -890,6 +890,95 @@ img, video, iframe {
     flex-wrap: wrap;
 }
 
+/* Info Tooltip */
+.tech-tooltip {
+    /* display: block; */
+    position: absolute;
+    top: 130%;
+    right: 0;
+    z-index: 2600;
+    width: max-content;
+    min-width: 200px;
+    max-width: 350px;
+    text-align: left;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    border: 1px solid var(--border-dim);
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: var(--shadow-md);
+/* ===== DELETE THIS LATER IF IT WORKS =====
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-5px);
+    transition: all 0.2s ease-in-out;
+    pointer-events: none; */
+
+    display: none;
+}
+
+/* ===== DELETE THIS LATER IF IT WORKS =====
+.tooltip-container:hover .tech-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+} */
+
+.tech-scroll-area {
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.tech-scroll-area::-webkit-scrollbar { width: 6px; }
+.tech-scroll-area::-webkit-scrollbar-track { background: transparent; }
+.tech-scroll-area::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 4px; }
+
+.tech-tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    right: 12px;
+    margin-bottom: -6px;
+
+    width: 12px;
+    height: 12px;
+    background-color: var(--bg-body);
+    
+    border-top: 1px solid var(--border-dim);
+    border-left: 1px solid var(--border-dim);
+
+    transform: rotate(45deg);
+}
+
+.tech-tooltip strong { display: block; margin-bottom: 2px; color: var(--text-sub); }
+.tech-tooltip ul { margin: 0; padding: 0; list-style: none; }
+
+.tech-path-text {
+    /* DELETE IF WORKS overflow-wrap: anywhere;
+    word-break: break-all; */
+    max-width: 100%;
+    display: block;
+}
+
+.tech-track-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.tech-group {
+    margin-bottom: 12px;
+}
+
+#subtitleList, #audioList { text-transform: capitalize; }
+
 /* Base Badge */
 .badge {
     background: var(--bg-tint-dim);
@@ -1494,16 +1583,6 @@ img, video, iframe {
     .sort-options.full-width .sort-option { margin-bottom: 5px; }
 
     /* Specific adjustments for Details Modal */
-    .details-content {
-        background: var(--bg-body);
-    }
-
-    .details-backdrop {
-        height: 250px;
-        mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
-        -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
-    }
-
     .details-body {
         display: grid;
         grid-template-columns: 110px 1fr; /* Poster Width | Rest */
@@ -1604,6 +1683,7 @@ img, video, iframe {
         margin: 0;
         align-self: end; /* Align to bottom of this cell so it sits right above badges */
         padding-top: 10px; /* spacing from backdrop edge */
+        text-align: left;
     }
 
     /* 7. Badges (Right of Poster, Under Title) */
@@ -1622,6 +1702,7 @@ img, video, iframe {
     }
 
     /* 8. Description & Others (Full Width, Below Poster) */
+    #detailsDirector,
     #detailsOverview, 
     .details-divider, 
     .details-genres, 
@@ -1633,11 +1714,13 @@ img, video, iframe {
     }
     
     /* Order adjustment ensures flow */
-    #detailsOverview { grid-row: 3; margin: 0; text-align: left; }
-    .details-divider { grid-row: 4; margin: 10px 0; }
-    .details-genres { grid-row: 5; margin: 0; justify-content: center; }
-    .details-divider:nth-of-type(2) { grid-row: 6; }
-    .details-tech-info { grid-row: 7; margin: 0; text-align: left;}
+    #detailsDirector { grid-row: 3; margin: 0; text-align: left; }
+    #detailsOverview { grid-row: 4; margin: 0; text-align: left; }
+    .details-divider { grid-row: 5; margin: 10px 0; }
+    .details-genres { grid-row: 6; margin: 0; justify-content: center; }
+    .details-divider:nth-of-type(2) { grid-row: 7; }
+    .details-tech-info { grid-row: 8; margin: 0; text-align: left;}
+    #techInfoBox { text-align: left; }
 
     /* 9. Mobile "X" Button Styling 
        Make it a visible circle button since it sits on top of the image

@@ -21,4 +21,4 @@ RUN mkdir -p /config
 EXPOSE 6070
 
 # Run Flask
-CMD ["python", "-u", "app.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:6070", "app:app"]

@@ -201,7 +201,35 @@
                     <img id="detailsPosterImg" src="" alt="Poster" class="card-poster">
                 </div>
                 <div class="details-info">
-                    <h2 id="detailsTitle">Title</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                        <h2 id="detailsTitle" style="margin-top: 0; line-height: 1.2;">Title</h2>
+                        <div class="tooltip-container" style="position: relative; display: inline-block;">
+                            <button id="btnTechInfo" class="btn-icon" style="background: none; border: none; color: var(--text-sub); opacity: 0.7; cursor: pointer; padding: 0; padding-top: 5px;" title="Technical Details">
+                                <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
+                            </button>
+                            <div id="techInfoBox" class="tech-tooltip tech-info-box">
+                                <div class="tech-scroll-area">
+                                    <div class="tech-group">
+                                        <strong>VIDEO</strong>
+                                        <span id="videoInfo"></span>
+                                    </div>
+                                    <div class="tech-group">
+                                        <strong>AUDIO</strong>
+                                        <span id="audioList"></span>
+                                    </div>
+                                    <div class="tech-group">
+                                        <strong>SUBTITLES</strong>
+                                        <span id="subtitleList"></span>
+                                    </div>
+                                    <div class="tech-group">
+                                        <strong>FILE</strong>
+                                        <span id="fileInfo"></span><br>
+                                        <div id="filePath" class="tech-path-text"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="details-meta-row">
                         <span id="detailsYear" class="badge">Year</span>
                         <span id="detailsRuntime" class="badge" style="display: none;">Runtime</span>
@@ -210,10 +238,10 @@
                         <span id="detailsType" class="badge badge-type">Type</span>
                         <span id="detailsCollectionBadge" class="badge badge-collection" style="display: none;">Collection</span>
                     </div>
+                    <div id="detailsDirector" style="font-weight: 500; display: none;"></div>
                     <p id="detailsOverview">Overview text...</p>
                     <div class="details-divider"></div>
                     <div class="details-genres" id="detailsGenres"></div>
-                    <div class="details-divider"></div>
                     <div class="details-tech-info">
                         <strong id="detailsLibraryLabel">Library:</strong> <span id="detailsLibrary"></span>
                     </div>
@@ -858,20 +886,28 @@
                 const detailsModal = document.getElementById('detailsModal');
                 const filterMenu = document.getElementById('filterMenu');
                 const sortMenu = document.getElementById('sortMenu');
+                const techBox = document.getElementById('techInfoBox');
 
                 if (event.target === settingsModal) closeSettings(true);
                 if (event.target === detailsModal) closeDetails();
 
+                // Close Filter Menu on outside click
                 if (filterMenu && filterMenu.classList.contains('show')) { 
                     if (!event.target.closest('#filterMenu') && !event.target.closest('#desktopFilterBtn')) {
                         closeMenu('filterMenu', true);
                     }
                 }
 
+                // Close Sort Menu on outside click
                 if (sortMenu && sortMenu.classList.contains('show')) { 
                     if (!event.target.closest('#sortMenu') && !event.target.closest('#desktopSortBtn')) {
                         closeMenu('sortMenu', true);
                     }
+                }
+
+                // Close Info Tooltip on outside click
+                if (techBox && techBox.style.display === 'block' && !techBox.contains(event.target) && event.target.closest('#btnTechInfo') === null) {
+                    techBox.style.display = 'none';
                 }
             });
 
@@ -1121,6 +1157,16 @@
                 document.getElementById('detailsYear').innerText = item.ProductionYear || 'N/A';
                 document.getElementById('detailsOverview').innerText = item.Overview || 'No description available.';
                 document.getElementById('detailsPosterImg').src = item.PosterUrl;
+
+                // Populate Director or Creator
+                const dirDiv = document.getElementById('detailsDirector');
+                if (item.Creator) {
+                    dirDiv.innerHTML = `<strong>Created by:</strong> <span style="color: var(--text-main);">${item.Creator}</span>`;
+                    dirDiv.style.display = 'block';
+                } else if (item.Director) {
+                    dirDiv.innerHTML = `<strong>Directed by:</strong> <span style="color: var(--text-main);">${item.Director}</span>`;
+                    dirDiv.style.display = 'block';
+                } else { dirDiv.style.display = 'none'; }
                 
                 const libContainer = document.getElementById('detailsLibrary');
                 libContainer.innerHTML = '';
@@ -1159,7 +1205,6 @@
                 const mpaBadge = document.getElementById('detailsMpaRating');
                 if (mpaBadge) {
                     mpaBadge.innerText = mpaRating;
-                    
                     // Logic: Hide if 'NR' or null, show otherwise
                     // You can remove "|| mpaRating === 'NR'" if you WANT to see NR
                     if (!mpaRating || mpaRating === 'NR') {
@@ -1196,13 +1241,6 @@
                         runtimeBadge.style.display = 'inline-flex';
                     } else { runtimeBadge.style.display = 'none'; }
                 }
-                /*let runtime = "N/A";
-                if (item.RunTimeTicks) {
-                    let minutes = Math.floor(item.RunTimeTicks / 10000000 / 60);
-                    runtime = minutes > 60 ? Math.floor(minutes/60) + "h " + (minutes%60) + "m" : minutes + "m";
-                }
-                document.getElementById('detailsRuntime').innerText = runtime;*/
-
 
                 document.getElementById('detailsRating').innerHTML = `<i class="fas fa-star"></i> ${item.CommunityRating ? item.CommunityRating.toFixed(1) : 'N/A'}`;
 
@@ -1213,12 +1251,163 @@
 
                 document.getElementById('detailsModal').classList.add('active');
                 lockBodyScroll();
+
+                // --- POPULATE & TOGGLE TECH SPECS
+                const techBox = document.getElementById('techInfoBox');
+                const scrollArea = techBox.querySelector('.tech-scroll-area');
+                //techBox.style.display = '';
+                /* ===== DELETE IF WORKING
+                if (item.MediaSources && item.MediaSources.length > 0) {
+                    const source = item.MediaSources[0];
+
+                    // 1. VIDEO
+                    const videoStream = source.MediaStreams?.find(s => s.Type === 'Video') || {};
+                    const res = (videoStream.Width && videoStream.Height) ? `${videoStream.Width}x${videoStream.Height}` : 'Unknown';
+                    const codec = (videoStream.Codec || 'Unknown').toUpperCase();
+                    const bitDepth = videoStream.BitDepth ? `${videoStream.BitDepth}-bit` : '8-bit';
+                    // We use <br> here to push the info to the next line below your <strong> headers
+                    document.getElementById('videoInfo').innerHTML = `${res}<br>${codec}<br>${bitDepth}`;
+
+                    // 2. AUDIO (Loops and maps to a clean list)
+                    const audioStreams = source.MediaStreams?.filter(s => s.Type === 'Audio') || [];
+                    document.getElementById('audioList').innerHTML = audioStreams.length > 0 
+                        ? audioStreams.map(a => `${a.Language || 'Und'} (${(a.Codec || '').toUpperCase()}) ${a.Title ? '&bull; ' + a.Title : ''}`).join('<br>')
+                        : '<br>None';
+
+                    // 3. SUBTITLES
+                    const subStreams = source.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
+                    document.getElementById('subtitleList').innerHTML = subStreams.length > 0
+                        ? subStreams.map(s => `${s.Language || 'Und'} ${s.Title ? '(' + s.Title + ')' : ''}`).join(' &bull; ')
+                        : '<br>None';
+
+                    // 4. FILE INFO
+                    const sizeGB = source.Size ? (source.Size / (1024 ** 3)).toFixed(2) + ' GB' : 'Unknown Size';
+                    const rawPath = source.Path || 'Path Unavailable';
+                    const formattedPath = rawPath.replace(/([/\\])/g, '$1<wbr>');
+                    document.getElementById('fileInfo').innerHTML = `${(source.Container || 'Unknown').toUpperCase()}<br>${sizeGB}`;
+                    document.getElementById('filePath').innerHTML = formattedPath;
+                } else {
+                    document.getElementById('videoInfo').innerHTML = "<br><span style='color:var(--text-sub)'>No details available.</span>";
+                    document.getElementById('audioList').innerHTML = "";
+                    document.getElementById('subtitleList').innerHTML = "";
+                    document.getElementById('fileInfo').innerHTML = "";
+                    document.getElementById('filePath').innerText = "";
+                } ==== END NEW DELETE IF WORKING */
+                // === NEW NEW NEW - DELETE COMMENTS IF WORKING
+                if (item.Type === 'Series') {
+                    // --- SERIES TOOLTIP LAYOUT ---
+                    const seasons = item.ChildCount ? item.ChildCount : 'Unknown';
+                    const episodes = item.RecursiveItemCount ? item.RecursiveItemCount : 'Unknown';
+                    const sPath = item.Path ? item.Path.replace(/([/\\])/g, '$1<wbr>') : 'Path unavailable';
+                    
+                    scrollArea.innerHTML = `
+                        <div class="tech-group">
+                            <strong>SERIES INFO</strong>
+                            Seasons: ${seasons}<br>
+                            Episodes: ${episodes}
+                        </div>
+                        <div class="tech-group">
+                            <strong>PATH</strong>
+                            <div class="tech-path-text">${sPath}</div>
+                        </div>
+                    `;
+                } else if (item.MediaSources && item.MediaSources.length > 0) {
+                    // --- MOVIE TOOLTIP LAYOUT ---
+                    const source = item.MediaSources[0];
+                    
+                    // Video
+                    const videoStream = source.MediaStreams?.find(s => s.Type === 'Video') || {};
+                    const res = (videoStream.Width && videoStream.Height) ? `${videoStream.Width}x${videoStream.Height}` : 'Unknown';
+                    const codec = (videoStream.Codec || 'Unknown').toUpperCase();
+                    const bitDepth = videoStream.BitDepth ? `${videoStream.BitDepth}-bit` : '8-bit';
+                    
+                    // Audio & Subs
+                    const audioStreams = source.MediaStreams?.filter(s => s.Type === 'Audio') || [];
+                    const audioHTML = audioStreams.length > 0 
+                        ? audioStreams.map(a => `${a.Language || 'Und'} (${(a.Codec || '').toUpperCase()}) ${a.Title ? '- ' + a.Title : ''}`).join('<br>')
+                        : 'None';
+
+                    const subStreams = source.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
+                    const subHTML = subStreams.length > 0
+                        ? subStreams.map(s => `${s.Language || 'Und'} ${s.Title ? '(' + s.Title + ')' : ''}`).join(' &bull; ')
+                        : 'None';
+
+                    // File
+                    const sizeGB = source.Size ? (source.Size / (1024 ** 3)).toFixed(2) + ' GB' : 'Unknown Size';
+                    const pathHTML = source.Path ? source.Path.replace(/([/\\])/g, '$1<wbr>') : 'Path unavailable';
+
+                    // Inject the Movie HTML
+                    // Note: We use <span id="audioList"> here so your CSS capitalization rule still works!
+                    scrollArea.innerHTML = `
+                        <div class="tech-group">
+                            <strong>VIDEO</strong>
+                            ${res}<br>${codec}<br>${bitDepth}
+                        </div>
+                        <div class="tech-group">
+                            <strong>AUDIO</strong>
+                            <span id="audioList">${audioHTML}</span>
+                        </div>
+                        <div class="tech-group">
+                            <strong>SUBTITLES</strong>
+                            <span id="subtitleList">${subHTML}</span>
+                        </div>
+                        <div class="tech-group">
+                            <strong>FILE</strong>
+                            ${(source.Container || 'Unknown').toUpperCase()}<br>${sizeGB}<br>
+                            <div class="tech-path-text">${pathHTML}</div>
+                        </div>
+                    `;
+                } else {
+                    // Fallback
+                    scrollArea.innerHTML = "<div class='tech-group'><span style='color:var(--text-sub)'>No details available.</span></div>";
+                }
+                // === END NEW NEW NEW - DELETE COMMENTS IF WORKING
+
+                // Click Listener
+                const techBtn = document.getElementById('btnTechInfo');
+                if (techBtn) {
+                    techBtn.onclick = (e) => {
+                        e.stopPropagation();
+
+                        const isHidden = techBox.style.display == 'none' || techBox.style.display === '';
+
+                        if (isHidden) {
+                            // 1. Teleport to body to escape the modal's clipping
+                            document.body.appendChild(techBox);
+
+                            // 2. Make it visible so we can measure it
+                            techBox.style.display = 'block';
+                            techBox.style.position = 'fixed';
+                            techBox.style.zIndex = '99999';
+
+                            // 3. Calculate exactly where the button is on screen
+                            const rect = techBtn.getBoundingClientRect();
+
+                            // 4. Position it just below the button
+                            techBox.style.top = (rect.bottom + 12) + 'px';
+
+                            // 5. Center it horizontally on the button, but keep it on screen
+                            let calcLeft = rect.left + (rect.width / 2) - (techBox.offsetWidth / 2);
+                            if (calcLeft < 10) calcLeft = 10;
+                            if (calcLeft + techBox.offsetWidth > window.innerWidth - 10) {
+                                calcLeft = window.innerWidth - techBox.offsetWidth - 10;
+                            }
+                            techBox.style.left = calcLeft + 'px';
+                        } else { techBox.style.display = 'none'; }
+
+                        //techBox.style.display = (techBox.style.display === 'none' || techBox.style.display === '') ? 'block' : 'none';
+                    };
+                }
             }
 
             function closeDetails() {
                 const modal = document.getElementById('detailsModal');
                 const content = modal.querySelector('.details-content');
                 if (content) content.scrollTop = 0;
+
+                // Force tooltip to hide when modal is closed
+                const techBox = document.getElementById('techInfoBox');
+                if (techBox) techBox.style.display = 'none';
 
                 modal.classList.remove('active');
                 unlockBodyScroll();

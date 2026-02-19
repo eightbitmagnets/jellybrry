@@ -16,6 +16,6 @@ instance/
 # Cache Files
 config/library_cache_*.json
 
-# If you use an IDE (VS Code, PyCharm)
 .vscode/
 .idea/
+docker-compose.dev.yml

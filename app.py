@@ -245,10 +245,9 @@ def fetch_library(force_refresh=False):
             "SortOrder": "Ascending",
             "IncludeItemTypes": "Movie,Series,Video,Boxset",
             "Recursive": "true",
-            "Fields": "PrimaryImageAspectRatio,SeriesName,SeasonNumber,IndexNumber,Genres,ProductionYear,Overview,CommunityRating,OfficialRating,RunTimeTicks,ProviderIds,Path,RecursiveItemCount,ChildCount,BackdropImageTags,DateCreated,Collections",
+            "Fields": "PrimaryImageAspectRatio,SeriesName,SeasonNumber,IndexNumber,Genres,ProductionYear,Overview,CommunityRating,OfficialRating,RunTimeTicks,ProviderIds,RecursiveItemCount,ChildCount,BackdropImageTags,DateCreated,Collections,People,MediaSources,Path,Chapters",
             "ParentId": lib_id,
-            "UserID": user_id,
-            "Limit": 10000 # Added safety limit
+            "UserID": user_id
         }
         
         try:
@@ -370,6 +369,51 @@ def index():
     for item in items:
         if query and query not in item.get('Name', '').lower():
             continue
+
+        # Get Director / Creator
+        people = item.get('People', [])
+
+        directors = [p['Name'] for p in people if p.get('Type') == 'Director']
+        item['Director'] = ", ".join(directors) if directors else None
+
+        creators = [p['Name'] for p in people if p.get('Type') == 'Creator']
+        item['Creator'] = ", ".join(creators) if creators else None
+
+        # Get Actors
+        actors_list = [p for p in people if p.get('Type') == 'Actor']
+        actors_list.sort(key=lambda x: x.get('SortOrder', 999))
+
+        cast_list = []
+        for p in actors_list[:12]:
+            cast_list.append({
+                'Name': p.get('Name'),
+                'Role': p.get('Role', ''),
+                'Id': p.get('Id'),
+                'ImageTag': p.get('PrimaryImageTag')
+            })
+
+        item['Cast'] = cast_list
+
+        # Get Tech Specs
+        tech_data = {
+            'Size': 'Unknown',
+            'Container': 'Unknown',
+            'Codec': 'Unknown',
+            'Resolution': 'Unknown'
+        }
+
+        media_sources = item.get('MediaSources', [])
+        if media_sources:
+            source = media_sources[0]
+            size_gb = round(source.get('Size', 0) / (1024**3), 2)
+            tech_data['Size'] = f"{size_gb} GB"
+            tech_data['Container'] = source.get('Container', 'Unknown')
+
+            video_stream = next((s for s in source.get('MediaStreams', []) if s.get('Type') == 'Video'), {})
+            tech_data['Codec'] = video_stream.get('Codec', '').upper()
+            tech_data['Resolution'] = f"{video_stream.get('Width', '?')}x{video_stream.get('Height', '?')}"
+
+        item['TechData'] = tech_data
         
         # Primary Image - Optimized for Grid
         item['PosterUrl'] = url_for('proxy_image', path=f"/Items/{item['Id']}/Images/Primary", fillWidth=320, quality=90)
