@@ -1260,7 +1260,7 @@
                     if (item.Type === 'Series') {
                         const seasons = item.ChildCount ? item.ChildCount : 'Unknown';
                         const episodes = item.RecursiveItemCount ? item.RecursiveItemCount : 'Unknown';
-                        const sPath = item.Path ? item.Path.replace(/([/\\])/g, '$1<wbr>') : 'Path unavailable';
+                        const sPath = extraData.Path ? extraData.Path.replace(/([/\\])/g, '$1<wbr>') : 'Path unavailable';
                         
                         scrollArea.innerHTML = `
                             <div class="tech-group">
@@ -1338,7 +1338,7 @@
                             const rect = techBtn.getBoundingClientRect();
                             techBox.style.top = (rect.bottom + 12) + 'px';
 
-                            let calcLeft = rect.left + (rect.width / 2) - (techBox.offsetWidth / 2);
+                            let calcLeft = rect.left + (rect.width / 2) + 20 - techBox.offsetWidth;
                             if (calcLeft < 10) calcLeft = 10;
                             if (calcLeft + techBox.offsetWidth > window.innerWidth - 10) {
                                 calcLeft = window.innerWidth - techBox.offsetWidth - 10;

@@ -944,7 +944,8 @@ img, video, iframe {
     content: "";
     position: absolute;
     bottom: 100%;
-    right: 12px;
+    right: 20px;
+    left: auto;
     margin-bottom: -6px;
 
     width: 12px;
