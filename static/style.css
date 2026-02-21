@@ -1058,6 +1058,17 @@ img, video, iframe {
     border: 1px solid var(--border-dim);
 }
 
+.badge,
+.genre-chip,
+.library-chip { transition: all 0.1s ease; opacity: 1; cursor: pointer; }
+
+.badge:hover,
+.genre-chip:hover,
+.library-chip:hover { transform: scale(1.08); opacity: 0.8; }
+
+.name { cursor: pointer; }
+.name:hover { text-decoration: underline; }
+
 .close-modal {
     position: absolute;
     top: 15px;

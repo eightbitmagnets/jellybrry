@@ -1153,62 +1153,36 @@
 
                 setActiveNav(null);
 
-                // --- 2. INSTANT UI UPDATES (The fast stuff) ---
+                // --- 2. INSTANT UI UPDATES (Title, Year, Overview, Poster) ---
                 document.getElementById('detailsTitle').innerText = item.Name;
                 document.getElementById('detailsYear').innerText = item.ProductionYear || 'N/A';
                 document.getElementById('detailsOverview').innerText = item.Overview || 'No description available.';
                 document.getElementById('detailsPosterImg').src = item.PosterUrl;
 
+                // --- LIBRARY BADGES
                 const libContainer = document.getElementById('detailsLibrary');
                 libContainer.innerHTML = '';
                 const rawLibs = (item.LibraryName || 'Unknown').split(/,\s*/);
                 const libs = rawLibs.filter(l => l && l.trim().length > 0);
+
                 const libLabel = document.getElementById('detailsLibraryLabel');
                 if (libLabel) libLabel.innerText = libs.length > 1 ? 'Libraries:' : 'Library:';
+
                 libs.forEach(lib => {
                     if (lib) {
                         let span = document.createElement('span');
                         span.className = 'library-chip';
                         span.innerText = lib.trim();
+                        span.onclick = () => {
+                            closeDetails();
+                            filterByDetail('library', lib.trim());
+                        }
                         libContainer.appendChild(span);
                         libContainer.appendChild(document.createTextNode(' '));
                     }
                 });
 
-                const colBadge = document.getElementById('detailsCollectionBadge');
-                if (item.Collections && Array.isArray(item.Collections) && item.Collections.length > 0) {
-                    colBadge.innerText = item.Collections.join(", ");
-                    colBadge.style.display = 'flex';
-                } else {
-                    colBadge.style.display = 'none';
-                }
-
-                const mpaRating = item.OfficialRating || 'NR';
-                const mpaBadge = document.getElementById('detailsMpaRating');
-                if (mpaBadge) {
-                    mpaBadge.innerText = mpaRating;
-                    if (!mpaRating || mpaRating === 'NR') {
-                        mpaBadge.style.display = 'none';
-                    } else { mpaBadge.style.display = 'inline-flex'; }
-                }
-
-                const typeBadge = document.getElementById('detailsType');
-                typeBadge.innerText = item.Type;
-                typeBadge.classList.remove('badge-movie', 'badge-series');
-                if (item.Type === 'Movie' || item.Type === 'Video') typeBadge.classList.add('badge-movie');
-                else if (item.Type === 'Series') typeBadge.classList.add('badge-series');
-
-                const genreContainer = document.getElementById('detailsGenres');
-                genreContainer.innerHTML = ''; 
-                if (item.Genres && item.Genres.length > 0) {
-                    item.Genres.forEach(genre => {
-                        let span = document.createElement('span');
-                        span.className = 'genre-chip';
-                        span.innerText = genre;
-                        genreContainer.appendChild(span);
-                    });
-                } else genreContainer.innerText = 'No genres listed';
-
+                // --- RUNTIME
                 const runtimeBadge = document.getElementById('detailsRuntime');
                 if (runtimeBadge) {
                     if (item.RunTimeTicks && item.RunTimeTicks > 0) {
@@ -1219,13 +1193,63 @@
                     } else { runtimeBadge.style.display = 'none'; }
                 }
 
+                // --- MPAA RATING
+                const mpaRating = item.OfficialRating || 'NR';
+                const mpaBadge = document.getElementById('detailsMpaRating');
+                if (mpaBadge) {
+                    mpaBadge.innerText = mpaRating;
+                    if (!mpaRating || mpaRating === 'NR') {
+                        mpaBadge.style.display = 'none';
+                    } else { mpaBadge.style.display = 'inline-flex'; }
+                }
+
+                // --- COLLECTION BADGES
+                const colBadge = document.getElementById('detailsCollectionBadge');
+                if (item.Collections && Array.isArray(item.Collections) && item.Collections.length > 0) {
+                    colBadge.innerText = item.Collections.join(", ");
+                    colBadge.style.display = 'flex';
+                } else {
+                    colBadge.style.display = 'none';
+                }
+
+                // --- MEDIA TYPE BADGE
+                const typeBadge = document.getElementById('detailsType');
+                typeBadge.innerText = item.Type;
+                typeBadge.classList.remove('badge-movie', 'badge-series');
+                if (item.Type === 'Movie' || item.Type === 'Video') typeBadge.classList.add('badge-movie');
+                else if (item.Type === 'Series') typeBadge.classList.add('badge-series');
+                typeBadge.onclick = () => {
+                    closeDetails();
+                    filterByDetail('type', item.Type);
+                }
+
+                // --- GENRE CHIPS
+                const genreContainer = document.getElementById('detailsGenres');
+                genreContainer.innerHTML = ''; 
+                if (item.Genres && item.Genres.length > 0) {
+                    item.Genres.forEach(genre => {
+                        let span = document.createElement('span');
+                        span.className = 'genre-chip';
+                        span.innerText = genre;
+
+                        span.style.cursore = 'pointer';
+                        span.title = `Filter by ${genre}`;
+                        span.onclick = () => {
+                            closeDetails();
+                            filterByDetail('genre', genre);
+                        }
+
+                        genreContainer.appendChild(span);
+                    });
+                } else genreContainer.innerText = 'No genres listed';
+
                 document.getElementById('detailsRating').innerHTML = `<i class="fas fa-star"></i> ${item.CommunityRating ? item.CommunityRating.toFixed(1) : 'N/A'}`;
 
                 const backdropDiv = document.getElementById('detailsBackdrop');
                 backdropDiv.style.backgroundImage = item.BackdropUrl ? `url('${item.BackdropUrl}')` : 'none';
                 backdropDiv.style.backgroundColor = item.BackdropUrl ? 'transparent' : '#111';
 
-                // Open Modal visually before fetching heavy stuff
+                // Open Modal before fetching tech info & directors
                 document.getElementById('detailsModal').classList.add('active');
                 lockBodyScroll();
 
@@ -1249,9 +1273,9 @@
                     const directors = people.filter(p => p.Type === 'Director').map(p => p.Name);
 
                     if (creators.length > 0) {
-                        dirDiv.innerHTML = `<strong>Created by:</strong> <span style="color: var(--text-main);">${creators.join(', ')}</span>`;
+                        dirDiv.innerHTML = `<strong>Created by:</strong> <span class="name" style="color: var(--text-main);">${creators.join(', ')}</span>`;
                     } else if (directors.length > 0) {
-                        dirDiv.innerHTML = `<strong>Directed by:</strong> <span style="color: var(--text-main);">${directors.join(', ')}</span>`;
+                        dirDiv.innerHTML = `<strong>Directed by:</strong> <span class="name" style="color: var(--text-main);">${directors.join(', ')}</span>`;
                     } else {
                         dirDiv.style.display = 'none';
                     }
@@ -1506,6 +1530,48 @@
             filterMedia(false);
         }
         
+        function filterByDetail(category, value) {
+            // 1. Map the generic category to your specific HTML container IDs
+            const categoryMap = {
+                'genre': 'genreInputs',
+                'type': 'typeInputs',
+                'library': 'libInputs',
+                'collection': 'collectionInputs'
+            };
+
+            const containerId = categoryMap[category];
+            if (!containerId) {
+                console.error(`Unknown filter category: ${category}`);
+                return;
+            }
+
+            // 2. Clear all filters before applying clicked badge/chip filter
+            Object.values(categoryMap).forEach(id => {
+                const currentContainer = document.getElementById(id);
+                if (currentContainer) { 
+                    const allBoxes = currentContainer.querySelectorAll('input[type="checkbox"]');
+                    allBoxes.forEach(cb => cb.checked = false); 
+                }
+            });
+
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+
+            // 3. Find the exact checkbox that matches the clicked value and check it
+            const targetCheckbox = Array.from(checkboxes).find(cb => cb.value.trim().toLowerCase() === value.trim().toLowerCase());
+            
+            if (targetCheckbox) {
+                targetCheckbox.checked = true;
+            } else {
+                console.warn(`Could not find a matching checkbox for: ${value}`);
+                return; 
+            }
+
+            // 4. Filter
+            filterMedia();
+        }
+
         // --- HELPER FUNCTIONS ---
         function toggleInput(id, icon) {
             const input = document.getElementById(id);
