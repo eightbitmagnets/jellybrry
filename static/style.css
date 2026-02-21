@@ -892,7 +892,6 @@ img, video, iframe {
 
 /* Info Tooltip */
 .tech-tooltip {
-    /* display: block; */
     position: absolute;
     top: 130%;
     right: 0;
@@ -912,23 +911,9 @@ img, video, iframe {
     border-radius: 8px;
     padding: 12px;
     box-shadow: var(--shadow-md);
-/* ===== DELETE THIS LATER IF IT WORKS =====
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-5px);
-    transition: all 0.2s ease-in-out;
-    pointer-events: none; */
 
     display: none;
 }
-
-/* ===== DELETE THIS LATER IF IT WORKS =====
-.tooltip-container:hover .tech-tooltip {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-    pointer-events: auto;
-} */
 
 .tech-scroll-area {
     max-height: 50vh;
@@ -962,8 +947,6 @@ img, video, iframe {
 .tech-tooltip ul { margin: 0; padding: 0; list-style: none; }
 
 .tech-path-text {
-    /* DELETE IF WORKS overflow-wrap: anywhere;
-    word-break: break-all; */
     max-width: 100%;
     display: block;
 }
@@ -1353,6 +1336,21 @@ img, video, iframe {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
 }
+
+.is-dragging {
+    cursor: grabbing !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+.is-dragging * {
+    cursor: grabbing !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-user-drag: none !important;
+}
+
+.horizontal-scroll-container img { -webkit-user-drag: none; }
 
 /* =========================
    5. MOBILE APP UI OVERRIDES

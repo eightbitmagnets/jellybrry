@@ -1512,6 +1512,9 @@
                     groups[key].forEach(wrapper => scrollContainer.appendChild(wrapper.element));
                     section.appendChild(scrollContainer);
                     groupedView.appendChild(section);
+
+                    // Make the horizontal scroll container draggable
+                    makeDraggable(scrollContainer);
                 });
             } else {
                 groupedView.style.display = 'none';
@@ -1686,6 +1689,93 @@
             itemsToShow.forEach(item => { item.element.style.display = ''; grid.appendChild(item.element); });
             document.getElementById('loadMoreContainer').style.display = currentFilteredItems.length > limit ? 'flex' : 'none';
         }
+
+        function makeDraggable(container) {
+            if (!container) return;
+
+            let isDown = false;
+            let startX;
+            let scrollLeft;
+            let isDragging = false;
+            
+            // Physics variables
+            let velX = 0;
+            let momentumID;
+            let prevScrollLeft = 0;
+            let lastMoveTime = 0;
+
+            // The Shield
+            container.addEventListener('dragstart', (e) => e.preventDefault());
+
+            container.addEventListener('mousedown', (e) => {
+                isDown = true;
+                isDragging = false; 
+                container.classList.add('is-dragging');
+
+                container.style.scrollBehavior = 'auto';
+                
+                startX = e.pageX - container.offsetLeft;
+                scrollLeft = container.scrollLeft;
+                
+                // Kill any existing momentum if they grab it while it's spinning
+                cancelAnimationFrame(momentumID); 
+                prevScrollLeft = container.scrollLeft;
+                velX = 0;
+            });
+
+            container.addEventListener('mouseleave', () => {
+                if (!isDown) return;
+                isDown = false;
+                container.classList.remove('is-dragging');
+                // If paused for more than 100ms before releasing, kill the throw
+                if (Date.now() - lastMoveTime > 100) { velX = 0; }
+                beginMomentum(); // Fire the throw!
+            });
+
+            container.addEventListener('mouseup', () => {
+                if (!isDown) return;
+                isDown = false;
+                container.classList.remove('is-dragging');
+                // If paused for more than 100ms before releasing, kill the throw
+                if (Date.now() - lastMoveTime > 100) { velX = 0; }
+                beginMomentum(); // Fire the throw!
+            });
+
+            container.addEventListener('mousemove', (e) => {
+                if (!isDown) return;
+                e.preventDefault(); 
+                
+                const x = e.pageX - container.offsetLeft;
+                const walk = (x - startX); 
+                
+                if (Math.abs(walk) > 3) {
+                    isDragging = true; 
+                }
+                
+                container.scrollLeft = scrollLeft - walk; 
+                
+                // Track how fast the mouse is moving right before release
+                velX = container.scrollLeft - prevScrollLeft;
+                prevScrollLeft = container.scrollLeft;
+                lastMoveTime = Date.now();
+            });
+
+            container.addEventListener('click', (e) => {
+                if (isDragging) {
+                    e.preventDefault();
+                    e.stopPropagation(); 
+                }
+            }, true); 
+
+            // The Physics Engine
+            function beginMomentum() {
+                if (Math.abs(velX) > 0.5) { // Keeps running until speed is near zero
+                    container.scrollLeft += velX;
+                    velX *= 0.95; // 0.95 is the sweet spot. Closer to 1 = ice, closer to 0 = mud.
+                    momentumID = requestAnimationFrame(beginMomentum);
+                } else { container.style.scrollBehavior = ''; }
+        }
+    }
     </script>
 </body>
 </html>
