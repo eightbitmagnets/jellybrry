@@ -135,10 +135,13 @@
                 {% for item in movies %}
                 <div class="media-card movie-card" 
                      data-type="Movie"
-                     data-official-rating="{{ item.OfficialRating|default('NR') }}"
                      data-library="{{ item.LibraryName }}"
                      data-genres="{{ item.Genres|join(', ') }}"
                      data-collections="{{ item.Collections|join(', ') }}"
+                     data-year="{{ item.ProductionYear }}"
+                     data-runtime="{{ item.RunTimeTicks }}"
+                     data-mpaa="{{ item.OfficialRating|default('NR') }}"
+                     data-rating="{{ item.CommunityRating }}"
                      data-item='{{ item|tojson|safe }}'>
                     <div class="poster-wrapper">
                         <img src="{{ item.PosterUrl }}" loading="lazy" alt="{{ item.Name }}" class="card-poster">
@@ -157,10 +160,13 @@
                 {% for item in series %}
                  <div class="media-card series-card"
                      data-type="Series"
-                     data-official-rating="{{ item.OfficialRating|default('NR') }}"
                      data-library="{{ item.LibraryName }}"
                      data-genres="{{ item.Genres|join(', ') }}"
                      data-collections="{{ item.Collections|join(', ') }}"
+                     data-year="{{ item.ProductionYear }}"
+                     data-runtime="{{ item.RunTimeTicks }}"
+                     data-mpaa="{{ item.OfficialRating|default('NR') }}"
+                     data-rating="{{ item.CommunityRating }}"
                      data-item='{{ item|tojson|safe }}'>
                     <div class="poster-wrapper">
                         <img src="{{ item.PosterUrl }}" loading="lazy" alt="{{ item.Name }}" class="card-poster">
@@ -316,6 +322,12 @@
                 <div id="mobileAlphaInputs"  class="alpha-grid">
                 </div>
             </div>
+        </div>
+        <div id="extended-modal-filters" style="display: none;">
+            <input type="checkbox" class="filter-checkbox" id="hidden-year" value="">
+            <input type="checkbox" class="filter-checkbox" id="hidden-mpaa" value="">
+            <input type="checkbox" class="filter-checkbox" id="hidden-runtime" value="">
+            <input type="checkbox" class="filter-checkbox" id="hidden-rating" value="">
         </div>
     </div>
 
@@ -631,7 +643,11 @@
                     type: (card.getAttribute('data-type') || "").toLowerCase(),
                     library: (card.getAttribute('data-library') || "").toLowerCase(),
                     genres: (card.getAttribute('data-genres') || "").replace(/[\[\]'"]/g, '').toLowerCase().split(/,\s*/).map(s => s.trim()),
-                    collections: (card.getAttribute('data-collections') || "").toLowerCase().split(/,\s*/).map(s => s.trim())
+                    collections: (card.getAttribute('data-collections') || "").toLowerCase().split(/,\s*/).map(s => s.trim()),
+                    year: (parseInt(card.getAttribute('data-year')) || 0),
+                    runTimeTicks: (parseInt(card.getAttribute('data-runtime')) || 0),
+                    mpaa: (card.getAttribute('data-mpaa') || 'NR'),
+                    rating: Number(parseFloat((card.getAttribute('data-rating')) || 0).toFixed(1))
                 };
             });
 
@@ -1155,9 +1171,16 @@
 
                 // --- 2. INSTANT UI UPDATES (Title, Year, Overview, Poster) ---
                 document.getElementById('detailsTitle').innerText = item.Name;
-                document.getElementById('detailsYear').innerText = item.ProductionYear || 'N/A';
+                //document.getElementById('detailsYear').innerText = item.ProductionYear || 'N/A';
                 document.getElementById('detailsOverview').innerText = item.Overview || 'No description available.';
                 document.getElementById('detailsPosterImg').src = item.PosterUrl;
+
+                // --- YEAR BADGE
+                const yearBadge = document.getElementById('detailsYear');
+                yearBadge.innerText = item.ProductionYear || 'N/A';
+                if (item.ProductionYear) {
+                    yearBadge.onclick = () => { closeDetails(); filterByDetail('year', item.ProductionYear); };
+                }
 
                 // --- LIBRARY BADGES
                 const libContainer = document.getElementById('detailsLibrary');
@@ -1190,6 +1213,7 @@
                         let runtimeText = minutes > 60 ? Math.floor(minutes/60) + "h " + (minutes%60) + "m" : minutes + "m";
                         runtimeBadge.innerText = runtimeText;
                         runtimeBadge.style.display = 'inline-flex';
+                        runtimeBadge.onclick = () => { closeDetails(); filterByDetail('runtime', minutes); };
                     } else { runtimeBadge.style.display = 'none'; }
                 }
 
@@ -1200,8 +1224,16 @@
                     mpaBadge.innerText = mpaRating;
                     if (!mpaRating || mpaRating === 'NR') {
                         mpaBadge.style.display = 'none';
-                    } else { mpaBadge.style.display = 'inline-flex'; }
+                    } else { 
+                        mpaBadge.style.display = 'inline-flex'; 
+                        mpaBadge.onclick = () => { closeDetails(); filterByDetail('mpaa', mpaRating); };
+                    }
                 }
+
+                // --- COMMUNITY RATING
+                const ratingBadge = document.getElementById('detailsRating');
+                ratingBadge.innerHTML = `<i class="fas fa-star"></i> ${item.CommunityRating ? item.CommunityRating.toFixed(1) : 'N/A'}`;
+                if (item.CommunityRating) { ratingBadge.onclick = () => { closeDetails(); filterByDetail('rating', item.CommunityRating); }; }
 
                 // --- COLLECTION BADGES
                 const colBadge = document.getElementById('detailsCollectionBadge');
@@ -1534,6 +1566,13 @@
         }
         
         function filterByDetail(category, value) {
+            // Reset Sort
+            currentSortState = { criteria: 'title', order: 'asc' };
+            currentGroupState = null;
+            document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('active'));
+            const defaultSortBtn = document.querySelector(`.sort-option[data-sort="title"][data-order="asc"]`);
+            if (defaultSortBtn) defaultSortBtn.classList.add('active');
+
             // 1. Map the generic category to your specific HTML container IDs
             const categoryMap = {
                 'genre': 'genreInputs',
@@ -1542,11 +1581,53 @@
                 'collection': 'collectionInputs'
             };
 
+            // Intercept extended filters
+            const extendedCategories = ['year', 'mpaa', 'runtime', 'rating'];
+
+            if (extendedCategories.includes(category)) {
+                document.querySelectorAll('#filterMenu input[type="checkbox"]').forEach(cb => cb.checked = false);
+                document.querySelectorAll('#extended-modal-filters input[type="checkbox"]').forEach(cb => cb.checked = false);
+                const hiddenBox = document.getElementById(`hidden-${category}`);
+
+                if (category === 'runtime') {
+                    const mins = parseInt(value);
+                    const floor = Math.floor(mins / 60) * 60;
+                    const ceiling = floor + 60;
+                    hiddenBox.value = `${floor}-${ceiling}`;
+
+                    // Auto Sort Runtime ascending
+                    currentSortState = { criteria: 'runtime', order: 'asc' };
+                    currentGroupState = null;
+                    // Sync sorting UI
+                    document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('active'));
+                    const targetSortBtn = document.querySelector(`.sort-option[data-sort="${category}"][data-order="asc"]`);
+                    if (targetSortBtn) targetSortBtn.classList.add('active');
+                } else if (category === 'rating') {
+                    const r = parseFloat(value);
+                    const roundedRating = Number(r.toFixed(1));
+                    const floor = Math.floor(roundedRating);
+                    const ceiling = floor + 1;
+                    hiddenBox.value = `${floor}-${ceiling}`;
+
+                    // Auto Sort Rating ascending
+                    currentSortState = { criteria: 'rating', order: 'asc' };
+                    currentGroupState = null;
+                    // Sync Sorting UI
+                    document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('active'));
+                    const targetSortBtn = document.querySelector(`.sort-option[data-sort="${category}"][data-order="asc"]`);
+                    if (targetSortBtn) targetSortBtn.classList.add('active');
+                } else { hiddenBox.value = value; }
+
+                hiddenBox.checked = true;
+                filterMedia();
+                return;
+            }
+
             const containerId = categoryMap[category];
             if (!containerId) {
                 console.error(`Unknown filter category: ${category}`);
                 return;
-            }
+            } // End extended filters interception
 
             // 2. Clear all filters before applying clicked badge/chip filter
             Object.values(categoryMap).forEach(id => {
@@ -1556,6 +1637,9 @@
                     allBoxes.forEach(cb => cb.checked = false); 
                 }
             });
+
+            // Force hidden extended filters to uncheck
+            document.querySelectorAll('#extended-modal-filters input[type="checkbox"]').forEach(cb => cb.checked = false);
 
             const container = document.getElementById(containerId);
             if (!container) return;
@@ -1655,6 +1739,16 @@
             const libState = getFilterState('libInputs');
             const genreState = getFilterState('genreInputs');
             const collectionState = getFilterState('collectionInputs');
+
+            // Read Extended Filters
+            const hiddenYear = document.getElementById('hidden-year');
+            const activeYear = hiddenYear && hiddenYear.checked ? hiddenYear.value : null;
+            const hiddenRuntime = document.getElementById('hidden-runtime');
+            const activeRuntime = hiddenRuntime && hiddenRuntime.checked ? hiddenRuntime.value : null;
+            const hiddenMpaa = document.getElementById('hidden-mpaa');
+            const activeMpaa = hiddenMpaa && hiddenMpaa.checked ? hiddenMpaa.value : null;
+            const hiddenRating = document.getElementById('hidden-rating');
+            const activeRating = hiddenRating && hiddenRating.checked ? hiddenRating.value : null;
             
             currentFilteredItems = [];
             for (let item of mediaCache) {
@@ -1664,6 +1758,26 @@
                 let matchesLib = libState.isAll || libState.isNone || libState.selected.some(l => item.library.includes(l));
                 let matchesGenre = genreState.isAll || genreState.isNone || genreState.selected.some(g => item.genres.includes(g));
                 let matchesCollection = collectionState.isAll || collectionState.isNone || (item.collections && collectionState.selected.some(c => item.collections.includes(c)));
+
+                // Extended filter choices
+                let matchesYear = true;
+                if (activeYear) { matchesYear = (item.year == activeYear); }
+                
+                let matchesRuntime = true;
+                if (activeRuntime) {
+                    const [floor, ceiling] = activeRuntime.split('-').map(Number);
+                    const itemMins = Math.floor(item.runTimeTicks / 600000000);
+                    matchesRuntime = (itemMins >= floor && itemMins < ceiling);
+                }
+
+                let matchesMpaa = true;
+                if (activeMpaa) { matchesMpaa = (item.mpaa == activeMpaa); }
+
+                let matchesRating = true;
+                if (activeRating) {
+                    const [floor, ceiling] = activeRating.split('-').map(Number);
+                    matchesRating = (item.rating >= floor && item.rating < ceiling);
+                }
                 
                 let matchesAlpha = true;
                 if (currentAlphaFilter) {
@@ -1671,7 +1785,7 @@
                     matchesAlpha = currentAlphaFilter === '#' ? /^[^a-z]/i.test(cleanT) : cleanT.startsWith(currentAlphaFilter.toLowerCase());
                 }
 
-                if (matchesText && matchesType && matchesLib && matchesGenre && matchesCollection && matchesAlpha) currentFilteredItems.push(item);
+                if (matchesText && matchesType && matchesLib && matchesGenre && matchesCollection && matchesAlpha && matchesYear && matchesRuntime && matchesMpaa && matchesRating) { currentFilteredItems.push(item); }
             }
 
             document.querySelectorAll('.count').forEach(el => {
