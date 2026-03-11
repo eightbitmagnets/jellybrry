@@ -245,7 +245,7 @@ def fetch_library(force_refresh=False):
             "SortOrder": "Ascending",
             "IncludeItemTypes": "Movie,Series,Video,Boxset",
             "Recursive": "true",
-            "Fields": "PrimaryImageAspectRatio,SeriesName,SeasonNumber,IndexNumber,Genres,ProductionYear,Overview,CommunityRating,OfficialRating,RunTimeTicks,ProviderIds,RecursiveItemCount,ChildCount,BackdropImageTags,DateCreated,Collections",
+            "Fields": "PrimaryImageAspectRatio,SeriesName,SeasonNumber,IndexNumber,Genres,ProductionYear,Overview,CommunityRating,OfficialRating,RunTimeTicks,ProviderIds,RecursiveItemCount,ChildCount,BackdropImageTags,DateCreated,Collections,People",
             "ParentId": lib_id,
             "UserID": user_id
         }
@@ -256,6 +256,17 @@ def fetch_library(force_refresh=False):
             
             if r.status_code == 200:
                 items = r.json().get("Items", [])
+
+                def process_people(i):
+                    people = i.get('People', [])
+                    creators = [p.get('Name') for p in people if p.get('Type') == 'Creator' and p.get('Name')]
+                    directors = [p.get('Name') for p in people if p.get('Type') == 'Director' and p.get('Name')]
+                    actors = [p.get('Name') for p in people if p.get('Type') == 'Actor' and p.get('Name')]
+                    
+                    i['ExtractedDirectors'] = ", ".join(creators + directors)
+                    i['ExtractedActors'] = ", ".join(actors)
+                    
+                    i.pop('People', None) # Delete the array to keep the cache file tiny!
                 
                 # Tag each item with the Library Name AND Collections
                 for item in items:
@@ -279,12 +290,14 @@ def fetch_library(force_refresh=False):
                                 # Process the child movie just like a normal item
                                 child['LibraryName'] = lib_name
                                 child['Collections'] = collection_map.get(child['Id'], [])
+                                process_people(child)
                                 all_items.append(child)
                     
                     else:
                         # It's already a normal Movie/Series, just add it
                         item['LibraryName'] = lib_name
                         item['Collections'] = collection_map.get(item['Id'], [])
+                        process_people(item)
                         all_items.append(item)
                         
         except Exception as e:

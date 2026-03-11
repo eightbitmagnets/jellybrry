@@ -142,6 +142,8 @@
                      data-runtime="{{ item.RunTimeTicks }}"
                      data-mpaa="{{ item.OfficialRating|default('NR') }}"
                      data-rating="{{ item.CommunityRating }}"
+                     data-director="{{ item.ExtractedDirectors }}"
+                     data-actor="{{ item.ExtractedActors }}"
                      data-item='{{ item|tojson|safe }}'>
                     <div class="poster-wrapper">
                         <img src="{{ item.PosterUrl }}" loading="lazy" alt="{{ item.Name }}" class="card-poster">
@@ -167,6 +169,8 @@
                      data-runtime="{{ item.RunTimeTicks }}"
                      data-mpaa="{{ item.OfficialRating|default('NR') }}"
                      data-rating="{{ item.CommunityRating }}"
+                     data-director="{{ item.ExtractedDirectors }}"
+                     data-actor="{{ item.ExtractedActors }}"
                      data-item='{{ item|tojson|safe }}'>
                     <div class="poster-wrapper">
                         <img src="{{ item.PosterUrl }}" loading="lazy" alt="{{ item.Name }}" class="card-poster">
@@ -647,7 +651,9 @@
                     year: (parseInt(card.getAttribute('data-year')) || 0),
                     runTimeTicks: (parseInt(card.getAttribute('data-runtime')) || 0),
                     mpaa: (card.getAttribute('data-mpaa') || 'NR'),
-                    rating: Number(parseFloat((card.getAttribute('data-rating')) || 0).toFixed(1))
+                    rating: Number(parseFloat((card.getAttribute('data-rating')) || 0).toFixed(1)),
+                    director: (card.getAttribute('data-director') || "").toLowerCase(),
+                    actor: (card.getAttribute('data-actor') || "").toLowerCase()
                 };
             });
 
@@ -1287,7 +1293,19 @@
 
                 // --- 3. SET UP SPINNERS ---
                 const dirDiv = document.getElementById('detailsDirector');
-                dirDiv.innerHTML = `<span style="color: var(--text-sub);"><i class="fas fa-spinner fa-spin"></i> Loading...</span>`;
+                const rawDirectors = item.ExtractedDirectors || "";
+                if (rawDirectors) {
+                    const dirArray = rawDirectors.split(', ');
+                    const label = item.Type === 'Series' ? 'Created by:' : 'Directed by:';
+                    const linksHTML = dirArray.map(name => {
+                        return `<span class="name director-link" onclick="searchDirector('${name.replace(/'/g, "\\'")}')">${name}</span>`;
+                    }).join(', ');
+                    dirDiv.innerHTML = `<strong>${label}</strong> ${linksHTML}`;
+                    dirDiv.style.display = 'block';
+                } else { 
+                    dirDiv.innerHTML = '';
+                    dirDiv.style.display = 'none';
+                }
                 dirDiv.style.display = 'block';
 
                 const techBox = document.getElementById('techInfoBox');
@@ -1298,19 +1316,6 @@
                 try {
                     const response = await fetch(`/api/item/${item.Id}`);
                     const extraData = await response.json();
-
-                    // Populate Creator/Director
-                    const people = extraData.People || [];
-                    const creators = people.filter(p => p.Type === 'Creator').map(p => p.Name);
-                    const directors = people.filter(p => p.Type === 'Director').map(p => p.Name);
-
-                    if (creators.length > 0) {
-                        dirDiv.innerHTML = `<strong>Created by:</strong> <span class="name" style="color: var(--text-main);">${creators.join(', ')}</span>`;
-                    } else if (directors.length > 0) {
-                        dirDiv.innerHTML = `<strong>Directed by:</strong> <span class="name" style="color: var(--text-main);">${directors.join(', ')}</span>`;
-                    } else {
-                        dirDiv.style.display = 'none';
-                    }
 
                     // Populate Tooltip
                     if (item.Type === 'Series') {
@@ -1404,19 +1409,6 @@
                     };
                 }
             }
-
-            function closeDetails() {
-                const modal = document.getElementById('detailsModal');
-                const content = modal.querySelector('.details-content');
-                if (content) content.scrollTop = 0;
-
-                // Force tooltip to hide when modal is closed
-                const techBox = document.getElementById('techInfoBox');
-                if (techBox) techBox.style.display = 'none';
-
-                modal.classList.remove('active');
-                unlockBodyScroll();
-            }
         
             // === THEME RADIO LISTENER (Preview - no save)
             document.querySelectorAll('input[name="theme"]').forEach(radio => {
@@ -1456,6 +1448,37 @@
             }
         
         });
+
+        function closeDetails() {
+            const modal = document.getElementById('detailsModal');
+            const content = modal.querySelector('.details-content');
+            if (content) content.scrollTop = 0;
+
+            // Force tooltip to hide when modal is closed
+            const techBox = document.getElementById('techInfoBox');
+            if (techBox) techBox.style.display = 'none';
+
+            modal.classList.remove('active');
+            unlockBodyScroll();
+        }
+
+        function searchDirector(name) {
+                closeDetails();
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {
+                    searchInput.value = name;
+                    // Sync the mobile search bar too
+                    const mInput = document.getElementById('mobileSearchInput');
+                    if (mInput) mInput.value = name;
+                    
+                    // Clear any other active filters so we get a clean search
+                    document.querySelectorAll('.filter-checkbox').forEach(cb => cb.checked = false);
+                    currentAlphaFilter = null;
+                    document.querySelectorAll('.alpha-item').forEach(i => i.classList.remove('active'));
+                    
+                    filterMedia();
+                }
+            }
 
         function debounce(func, wait) {
             let timeout;
@@ -1753,7 +1776,7 @@
             currentFilteredItems = [];
             for (let item of mediaCache) {
                 item.element.style.display = "none";
-                let matchesText = item.title.indexOf(textFilter) > -1;
+                let matchesText =   item.title.indexOf(textFilter) > -1 || item.director.indexOf(textFilter) > -1; //|| item.actor.indexOf(textFilter) > -1;
                 let matchesType = typeState.isAll || typeState.isNone || typeState.selected.includes(item.type);
                 let matchesLib = libState.isAll || libState.isNone || libState.selected.some(l => item.library.includes(l));
                 let matchesGenre = genreState.isAll || genreState.isNone || genreState.selected.some(g => item.genres.includes(g));
