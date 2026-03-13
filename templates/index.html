@@ -389,11 +389,19 @@
         <div class="modal-content">
             <button class="close-modal" id="closeSettingsBtn">&times;</button>
 
-            {% if not locked %}
-            <a href="{{ url_for('refresh') }}" class="refresh-icon-modal" title="Resync Libraries">
-                <i class="fas fa-sync"></i>
-            </a>
-            {% endif %}
+            <div style="position: absolute; top: 20px; left: 20px; display: flex; gap: 15px; align-items: center; z-index: 10;">
+                {% if not locked %}
+                <button id="modalSyncBtn" class="top-action-btn sync-btn" style="background:none; border:none; padding:0;" title="Delta Sync">
+                    <i class="fas fa-sync"></i>
+                </button>
+                {% endif %}
+
+                {% if is_admin %}
+                <button id="adminForceRebuildBtn" class="top-action-btn bomb-btn" style="background:none; border:none; padding:0;" title="Full Sync">
+                    <i class="fas fa-bomb"></i>
+                </button>
+                {% endif %}
+            </div>
 
             <h2 style="margin-top: 0; margin-bottom: 20px; text-align: center;">
                 {% if is_admin %}
@@ -466,6 +474,7 @@
                 </div>
             </div>
 
+            <!-- GUEST LOGIN -->
             {% if not is_admin %}
             <div id="guestLoginSection" style="margin-top: 20px; border-top: 1px solid var(--border-dim); padding-top: 20px;">
                 <button type="button" id="showLoginBtn" class="btn-text" style="width: 100%; text-align: center; color: var(--text-sub);">
@@ -490,6 +499,7 @@
             </div>
             {% endif %}
 
+            <!-- ADMIN SETTINGS -->
             {% if is_admin %}
             <form action="{{ url_for('update_settings') }}" method="POST">
                 <input type="hidden" name="theme" id="hiddenThemeInput" value="{{ config.theme }}">
@@ -555,11 +565,19 @@
             </form>
             {% endif %}
 
+            <!-- VERSION NUMBER -->
             <div style="text-align: left; margin-top: 30px; margin-bottom: 10px; border-top: 1px solid var(--border-dim); padding-top: 20px; font-size: 0.75rem; color: var(--text-sub); opacity: 0.8;">
                 <div class="version-tag">Jellybrry {{ version }}</div>
             </div>
         </div>
         
+    </div>
+
+    <div id="syncToast" class="sync-toast" style="display: none;">
+        <div class="sync-toast-content">
+            <i id="syncToastIcon" class="fas fa-sync fa-spin"></i>
+            <span id="syncToastMessage">Library syncing in the background...</span>
+        </div>
     </div>
 
     <script>
@@ -1447,6 +1465,116 @@
                 });
             }
         
+            // === BACKGROUND SYNC POLLING ===
+            let wasSyncing = false;
+            let syncIntervalId;
+            
+            async function checkSyncStatus() {
+                try {
+                    const res = await fetch('/api/sync_status');
+                    const data = await res.json();
+                    
+                    const toast = document.getElementById('syncToast');
+                    const toastIcon = document.getElementById('syncToastIcon');
+                    const toastMsg = document.getElementById('syncToastMessage');
+
+                    if (data.is_syncing) {
+                        wasSyncing = true;
+                        toast.classList.add('show');
+                        toast.classList.remove('clickable');
+                        toastIcon.className = 'fas fa-sync fa-spin';
+                        
+                        // Smart messaging: Check if grid is totally empty (Fresh Install/Rebuild)
+                        if (mediaCache.length === 0) {
+                            toastMsg.innerText = "Initial library build in progress. Please wait...";
+                        } else {
+                            toastMsg.innerText = "Library syncing in background...";
+                        }
+                        
+                        // Disable clicks while syncing
+                        toast.onclick = null;
+
+                    } else {
+                        if (wasSyncing) {
+                            wasSyncing = false;
+                            if (mediaCache.length === 0) {
+                                window.location.reload();
+                            } else {
+                                toastIcon.className = 'fas fa-check-circle';
+                                toastMsg.innerText = "Sync complete! Click to refresh grid.";
+                                toast.classList.add('clickable');
+                                
+                                toast.onclick = () => {
+                                    window.scrollTo(0, 0);
+                                    window.location.reload();
+                                };
+
+                                setTimeout(() => {
+                                    toast.classList.remove('show');
+                                }, 10000);
+                            }
+                        }
+                        // KILL THE LOOP!
+                        clearInterval(syncIntervalId);
+                    }
+                } catch (error) {
+                    console.error("Sync Status API Error:", error);
+                    // Kill the loop if the server disconnects so it doesn't spam the console
+                    clearInterval(syncIntervalId);
+                }
+            }
+
+            // Check sync status every 3 seconds
+            checkSyncStatus();
+            syncIntervalId = setInterval(checkSyncStatus, 3000);
+
+            // === DELTA SYNC ===
+            const modalSyncBtn = document.getElementById('modalSyncBtn');
+            if (modalSyncBtn) {
+                modalSyncBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+
+                    // Anti-Masher
+                    if (modalSyncBtn.disabled) return;
+                    modalSyncBtn.disabled = true;
+
+                    closeSettings(true); // Close the settings modal
+                    await fetch('/refresh');
+                    
+                    // Restart our polling loop so it can watch the sync happen
+                    clearInterval(syncIntervalId); 
+                    syncIntervalId = setInterval(checkSyncStatus, 3000);
+
+                    // Unlock button after 3s
+                    setTimeout(() => { modalSyncBtn.disabled = false; }, 3000);
+                });
+            }
+
+            // === ADMIN FULL REBUILD ===
+            const adminForceRebuildBtn = document.getElementById('adminForceRebuildBtn');
+            if (adminForceRebuildBtn) {
+                adminForceRebuildBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    
+                    // Safety Confirmation
+                    if (!confirm("This will wipe the current cache and do a full rebuild from Jellyfin. This process may take 1-2 minutes, but will happen in the background. Continue?")) {
+                        return;
+                    }
+
+                    if (adminForceRebuildBtn.disabled) return;
+                    adminForceRebuildBtn.disabled = true;
+                    
+                    closeSettings(true);
+                    
+                    // Call the secure POST route
+                    await fetch('/api/force_rebuild', { method: 'POST' });
+                    
+                    clearInterval(syncIntervalId); 
+                    syncIntervalId = setInterval(checkSyncStatus, 3000);
+                    
+                    setTimeout(() => { adminForceRebuildBtn.disabled = false; }, 3000);
+                });
+            }
         });
 
         function closeDetails() {
@@ -1589,6 +1717,9 @@
         }
         
         function filterByDetail(category, value) {
+            // Reset Filters
+            resetFilters();
+            
             // Reset Sort
             currentSortState = { criteria: 'title', order: 'asc' };
             currentGroupState = null;

@@ -3,8 +3,9 @@ import os
 import json
 import time
 import requests
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-from datetime import timedelta
+import threading
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from datetime import timedelta, datetime, timezone
 from collections import defaultdict
 from urllib.parse import urlparse
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -15,19 +16,22 @@ app.permanent_session_lifetime = timedelta(days=7)
 
 @app.context_processor
 def inject_version():
-    return dict(version=os.environ.get('VERSION', 'dev-build'))
+    return dict(version=os.environ.get('VERSION', 'v1.3.0'))
 
 # === Configuration Paths ===
 CONFIG_DIR = "/config"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")
 # Increment cache version to force re-fetch
-CACHE_FILE = os.path.join(CONFIG_DIR, "library_cache_v19.json")
+CACHE_FILE = os.path.join(CONFIG_DIR, "library_cache_v20.json")
 
 # Ensure config directory exists
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
 # Default Theme changed to 'dark'
 DEFAULT_THEME = os.environ.get('THEME', 'dark').lower()
+
+# Global Sync Tracker
+IS_SYNCING = False
 
 # === Helper Functions ===
 def load_config():
@@ -53,15 +57,39 @@ def load_cache():
     try:
         with open(CACHE_FILE, 'r') as f:
             data = json.load(f)
-            if time.time() - data.get('timestamp', 0) > 3600: 
-                return None
             return data.get('items', [])
     except Exception:
         return None
 
+def get_last_sync_time():
+    """Reads just the timestamp from the cache file."""
+    if not os.path.exists(CACHE_FILE):
+        return None
+    try:
+        with open(CACHE_FILE, 'r') as f:
+            data = json.load(f)
+            return data.get('timestamp')
+    except Exception:
+        return None
+
 def save_cache(items):
-    with open(CACHE_FILE, 'w') as f:
-        json.dump({'timestamp': time.time(), 'items': items}, f)
+    temp_file = CACHE_FILE + ".tmp"
+    try:
+        # Write to a temp file first
+        with open(temp_file, 'w') as f:
+            json.dump({'timestamp': time.time(), 'items': items}, f)
+            f.flush()
+            os.fsync(f.fileno())
+
+        # Overwrite live file with temp file
+        os.replace(temp_file, CACHE_FILE)
+        print("✅ Cache safely swapped and saved!")
+    except Exception as e:
+        print(f"❌ Failed to save cache: {e}")
+        import traceback
+        traceback.print_exc()
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
 def get_jellyfin_headers(api_key):
     return {
@@ -210,15 +238,31 @@ def get_collection_map(url, headers, user_id):
     sys.stdout.flush() # Force Docker to show the logs
     return collection_map
 
-def fetch_library(force_refresh=False):
+def fetch_library(force_refresh=False, delta_sync=False):
     config = load_config()
     if not config:
         return []
 
     if not force_refresh:
         cached = load_cache()
-        if cached:
+        if cached is not None:
             return cached
+
+        # If cache file doesn't exist, make sure worker is running and return empty grid until synced
+        global IS_SYNCING
+        if not IS_SYNCING:
+            IS_SYNCING = True
+            threading.Thread(target=background_sync_worker, kwargs={"force_refresh": True}).start()
+
+        return []
+    
+    min_date = None
+    if delta_sync:
+        last_sync = get_last_sync_time()
+        if last_sync:
+            # Jellyfin expects strict ISO 8601 format (e.g., 2023-10-25T12:00:00.000Z)
+            min_date = datetime.fromtimestamp(last_sync, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            print(f"🔄 Delta Sync triggered! Looking for items modified after: {min_date}", flush=True)
 
     url = config['jellyfin_url']
     headers = get_jellyfin_headers(config['api_key'])
@@ -227,8 +271,23 @@ def fetch_library(force_refresh=False):
     if not user_id:
         return []
 
-    # 1. Fetch Collection Mapping (Pre-fetch)
-    collection_map = get_collection_map(url, headers, user_id)
+   # 1. Fetch Collection Mapping (Pre-fetch)
+    collection_map = defaultdict(list)
+    if not delta_sync:
+        # Full Rebuild: Scrape the API
+        collection_map = get_collection_map(url, headers, user_id)
+    else:
+        # Delta Sync: Rebuild from local cache in 0.01 seconds!
+        cached_data = load_cache()
+        if cached_data:
+            for item in cached_data:
+                item_id = item.get('Id')
+                if not item_id:
+                    continue
+
+                for col in item.get('Collections') or []:
+                    if col not in collection_map[item_id]:
+                        collection_map[item_id].append(col)
 
     # 2. Fetch all libraries (Views) for this user
     libraries = get_user_libraries(url, config['api_key'], user_id)
@@ -243,13 +302,17 @@ def fetch_library(force_refresh=False):
         params = {
             "SortBy": "SortName",
             "SortOrder": "Ascending",
-            "IncludeItemTypes": "Movie,Series,Video,Boxset",
+            "IncludeItemTypes": "Movie,Series,Video",
             "Recursive": "true",
+            "CollapseBoxSetItems": "false",
             "Fields": "PrimaryImageAspectRatio,SeriesName,SeasonNumber,IndexNumber,Genres,ProductionYear,Overview,CommunityRating,OfficialRating,RunTimeTicks,ProviderIds,RecursiveItemCount,ChildCount,BackdropImageTags,DateCreated,Collections,People",
             "ParentId": lib_id,
             "UserID": user_id
         }
-        # REMOVED People,MediaSources,Path FROM FIELDS
+
+        if min_date:
+            params["MinDateLastSaved"] = min_date
+        
         try:
             r = requests.get(f"{url}/Users/{user_id}/Items", headers=headers, params=params)
             print(f"DEBUG: Jellyfin returned status {r.status_code}")
@@ -268,61 +331,69 @@ def fetch_library(force_refresh=False):
                     
                     i.pop('People', None) # Delete the array to keep the cache file tiny!
                 
-                # Tag each item with the Library Name AND Collections
                 for item in items:
-                    if item.get('Type') == 'BoxSet':
-                        # print(f"DEBUG: Unpacking BoxSet '{item['Name']}' manually...")
-                        
-                        # Fetch the actual movies inside this boxset
-                        box_params = {
-                            "ParentId": item['Id'], # Use the BoxSet ID as parent
-                            "UserId": user_id,
-                            "Recursive": "true",
-                            "IncludeItemTypes": "Movie,Series,Video",
-                            "Fields": params["Fields"], # We need the same metadata (images, etc)
-                            "Limit": 10000
-                        }
-                        
-                        box_r = requests.get(f"{url}/Users/{user_id}/Items", headers=headers, params=box_params)
-                        if box_r.status_code == 200:
-                            children = box_r.json().get("Items", [])
-                            for child in children:
-                                # Process the child movie just like a normal item
-                                child['LibraryName'] = lib_name
-                                child['Collections'] = collection_map.get(child['Id'], [])
-                                process_people(child)
-                                all_items.append(child)
-                    
-                    else:
-                        # It's already a normal Movie/Series, just add it
-                        item['LibraryName'] = lib_name
-                        item['Collections'] = collection_map.get(item['Id'], [])
-                        process_people(item)
-                        all_items.append(item)
+                    item['LibraryName'] = lib_name
+                    item['Collections'] = collection_map.get(item.get('Id')) or []
+                    process_people(item)
+                    all_items.append(item)
                         
         except Exception as e:
             print(f"Error fetching library '{lib_name}': {e}")
             continue
 
-    merged_items = {}
+    # 1. Group our newly fetched Delta items
+    delta_updates = {}
     for item in all_items:
         item_id = item['Id']
-        if item_id in merged_items:
-            # If item already exists, append the new library name
-            existing_lib = merged_items[item_id].get('LibraryName', '')
+        if item_id in delta_updates:
+            existing_lib = delta_updates[item_id].get('LibraryName', '')
             new_lib = item['LibraryName']
             if new_lib not in existing_lib:
-                merged_items[item_id]['LibraryName'] = f"{existing_lib}, {new_lib}"
+                delta_updates[item_id]['LibraryName'] = f"{existing_lib}, {new_lib}"
         else:
-            merged_items[item_id] = item
+            delta_updates[item_id] = item
+
+    # 2. Pre-load the existing cache if we are doing a Delta Sync
+    merged_items = {}
+    if delta_sync:
+        cached_data = load_cache()
+        if cached_data:
+            for item in cached_data:
+                merged_items[item['Id']] = item
+
+    # 3. Overwrite the old cache with the updated/new items
+    for item_id, updated_item in delta_updates.items():
+        merged_items[item_id] = updated_item
             
     final_items = list(merged_items.values())
-    final_items.sort(key=lambda x: x.get('Name', '').lower())
+    final_items.sort(key=lambda x: (x.get('Name') or '').lower())
 
     save_cache(final_items)
     return final_items
 
 # === Routes ===
+
+def background_sync_worker(force_refresh=True, delta_sync=False):
+    """The Detached Worker that runs invisibly in the background."""
+    global IS_SYNCING
+    try:
+        # We must use app_context so Flask's logger and tools work inside the thread
+        with app.app_context():
+            print("⏳ Background sync started...", flush=True)
+            fetch_library(force_refresh=force_refresh, delta_sync=delta_sync)
+    except Exception as e:
+        print(f"❌ Background sync failed: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+    finally:
+        IS_SYNCING = False
+        print("🏁 Background worker finished and released lock.", flush=True)
+
+@app.route('/api/sync_status')
+def sync_status():
+    """API Endpoint for the frontend to poll the sync status."""
+    global IS_SYNCING
+    return jsonify({"is_syncing": IS_SYNCING})
 
 @app.route('/proxy_image')
 def proxy_image():
@@ -516,7 +587,10 @@ def update_settings():
     
     # ONLY refresh if core credentials changed
     if needs_refresh:
-        fetch_library(force_refresh=True)
+        global IS_SYNCING
+        if not IS_SYNCING:
+            IS_SYNCING = True
+            threading.Thread(target=background_sync_worker, kwargs={"force_refresh": True, "delta_sync": False}).start()
         
     return redirect(url_for('index'))
 
@@ -558,8 +632,27 @@ def setup():
 
 @app.route('/refresh')
 def refresh():
-    fetch_library(force_refresh=True)
-    return redirect(url_for('index'))
+    global IS_SYNCING
+    if not IS_SYNCING:
+        IS_SYNCING = True
+        # User clicked Resync manually. Trigger Delta Sync
+        threading.Thread(target=background_sync_worker, kwargs={"force_refresh": True, "delta_sync": True}).start()
+
+    return jsonify({"status": "syncing"})
+
+@app.route('/api/force_rebuild', methods=['POST'])
+def force_rebuild():
+    # Security: Only admins can trigger this when logged in
+    if not session.get('is_admin'):
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    global IS_SYNCING
+    if not IS_SYNCING:
+        IS_SYNCING = True
+        # Force rebuild
+        threading.Thread(target=background_sync_worker, kwargs={"force_refresh": True, "delta_sync": False}).start()
+
+    return jsonify({"status": "syncing"})
 
 @app.template_filter('runtime')
 def filter_runtime(ticks):
@@ -568,6 +661,25 @@ def filter_runtime(ticks):
     minutes = (seconds // 60) % 60
     hours = (seconds // 60) // 60
     return f"{hours}h {minutes}m" if hours else f"{minutes}m"
+
+# === Boot Sequence ===
+
+# If settings exist when container starts, trigger background sync
+if load_config() and (os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug):
+    boot_mode = os.environ.get('BOOTSYNC', 'full').strip().lower()
+
+    if boot_mode == 'none':
+        print("🚀 Booting up! BOOTSYNC set to 'none'. Skipping automatic sync.", flush=True)
+    else:
+        IS_SYNCING = True
+
+        # Safety check: Cannot Delta sync if no cache file
+        if boot_mode == 'delta' and load_cache() is not None:
+            print("🚀 Booting up! BOOTSYNC set to 'delta'. Initiating fast background sync...", flush=True)
+            threading.Thread(target=background_sync_worker, kwargs={"force_refresh": True, "delta_sync": True}).start()
+        else:
+            print("🚀 Booting up! Initiating full background sync...", flush=True)
+            threading.Thread(target=background_sync_worker, kwargs={"force_refresh": True, "delta_sync": False}).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=6070, debug=True)
