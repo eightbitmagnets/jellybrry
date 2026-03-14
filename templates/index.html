@@ -951,9 +951,13 @@
                 }
             });
 
+            // 1. Always set the default Title A-Z UI first
             const defaultSortBtn = document.querySelector('.sort-option[data-sort="title"][data-order="asc"]');
             if(defaultSortBtn) defaultSortBtn.classList.add('active');
-            filterMedia(false); 
+
+            // 2. If a URL exists, parse it (this will override the default UI). Otherwise, just run the default filter.
+            if (window.location.search) { parseUrlState(); } 
+            else { filterMedia(false); }
 
             // === MOBILE NAV HANDLERS ===
             const mobileSearchInput = document.getElementById('mobileSearchInput');
@@ -1576,6 +1580,85 @@
                 });
             }
         });
+
+        function parseUrlState() {
+            const params = new URLSearchParams(window.location.search);
+
+            // 1. Search Query (Desktop & Mobile)
+            if (params.has('sq')) {
+                const sqVal = params.get('sq');
+                const dInput = document.getElementById('searchInput');
+                const mInput = document.getElementById('mobileSearchInput');
+                if (dInput) dInput.value = sqVal;
+                if (mInput) mInput.value = sqVal;
+            }
+
+            // 2. Sorting & Grouping
+            if (params.has('srt')) {
+                const sortBy = params.get('srt');
+                const sortOrder = params.get('so') === 'desc' ? 'desc' : 'asc';
+                const isGroupOption = ['genre', 'library', 'collection'].includes(sortBy);
+
+                if (isGroupOption) {
+                    currentGroupState = sortBy;
+                    currentSortState = { criteria: 'title', order: 'asc' };
+                    if (sortBy === 'collection') {
+                        currentSortState = { criteria: 'year', order: 'asc' }; // Your special collection rule
+                    }
+                } else {
+                    currentSortState = { criteria: sortBy, order: sortOrder };
+                    currentGroupState = null;
+                }
+
+                // Sync the UI Buttons
+                document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('active'));
+                let targetBtn;
+                if (isGroupOption) {
+                    targetBtn = document.querySelector(`.sort-option[data-sort="${sortBy}"]`);
+                } else {
+                    targetBtn = document.querySelector(`.sort-option[data-sort="${sortBy}"][data-order="${sortOrder}"]`);
+                }
+                if (targetBtn) targetBtn.classList.add('active');
+            }
+
+            // 3. Category Arrays (Media Type, Library, Genre, Collection)
+            const arrayMaps = { mt: 'typeInputs', l: 'libInputs', g: 'genreInputs', c: 'collectionInputs' };
+            
+            for (const [shortCode, containerId] of Object.entries(arrayMaps)) {
+                if (params.has(shortCode)) {
+                    const values = params.get(shortCode).split(',');
+                    const container = document.getElementById(containerId);
+                    
+                    if (container) {
+                        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+                        checkboxes.forEach(box => {
+                            // Normalize to match URL format (e.g. "Sci-Fi" -> "scifi")
+                            const normalizedBoxValue = box.value.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+                            if (values.includes(normalizedBoxValue)) {
+                                box.checked = true;
+                            }
+                        });
+                    }
+                }
+            }
+
+            // 4. Extended Filters (Year, MPAA, Runtime, Community Rating)
+            const hiddenMaps = { y: 'hidden-year', r: 'hidden-mpaa', rt: 'hidden-runtime', cr: 'hidden-rating' };
+            
+            for (const [shortCode, inputId] of Object.entries(hiddenMaps)) {
+                if (params.has(shortCode)) {
+                    const hiddenBox = document.getElementById(inputId);
+                    if (hiddenBox) {
+                        hiddenBox.value = params.get(shortCode);
+                        hiddenBox.checked = true;
+                    }
+                }
+            }
+
+            // 5. Fire the Engine
+            // This reads all the boxes we just checked and filters the page
+            filterMedia(false); 
+        }
 
         function closeDetails() {
             const modal = document.getElementById('detailsModal');
