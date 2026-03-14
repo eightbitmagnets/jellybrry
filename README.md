@@ -56,6 +56,38 @@ Designed to help you and your users browse your Jellyfin library with search, so
    - Jellyfin API Key
    - Admin Password (for settings)
 
+## Deep Linking Parameters
+Construct custom URLs manually, using these parameters
+
+### Search, Sort, & Group
+| Parameter | Description | Options / Examples |
+| :--- | :--- | :--- |
+| `sq` | Search Query | `?sq=matrix` |
+| `gb` | Group By | `g` (Genre), `l` (Library), `c` (Collection) |
+| `srt` | Sort By | `title`, `year`, `runtime`, `rating`, `date` |
+| `so` | Sort Order | `asc`, `dsc` |
+
+### Category Filters (Comma-separated)
+| Parameter | Description | Options / Examples |
+| :--- | :--- | :--- |
+| `mt` | Media Type | `?mt=movie,series` |
+| `l` | Library | `?l=movies,tvshows` |
+| `g` | Genre | `?g=action,scifi` |
+| `c` | Collection | `?c=marvel,starwars` |
+| `d` | Director/Creator| `?d=nolan` |
+
+### Extended Filters (Ranges)
+| Parameter | Description | Options / Examples |
+| :--- | :--- | :--- |
+| `y` | Release Year | `?y=1999` |
+| `r` | MPAA Rating | `?r=pg13` |
+| `rt` | Runtime (Mins) | `?rt=120-180` *(60-min floor/ceiling)* |
+| `cr` | Star Rating | `?cr=7-8` *(1-pt floor/ceiling)* |
+
+### Example URL:
+To link directly to all R-rated Action Movies from 1999, sorted newest to oldest:
+`https://your-jellybrry.com/?mt=movie&g=action&y=1999&r=r&srt=year&so=dsc`
+
 ## Screenshots
 
 ### Desktop Dashboard & Settings
