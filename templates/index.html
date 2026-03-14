@@ -832,6 +832,7 @@
                     }
 
                     applySort();
+                    updateUrlState();
                     closeMenu('sortMenu', true);
                     // Scroll to the top
                     window.scrollTo({ top: 0, behavior: 'smooth'});
@@ -1594,30 +1595,29 @@
             }
 
             // 2. Sorting & Grouping
-            if (params.has('srt')) {
+            if (params.has('gb')) {
+                // Handle Grouping
+                const gbMap = { 'g': 'genre', 'l': 'library', 'c': 'collection' };
+                const groupVal = gbMap[params.get('gb')];
+                
+                if (groupVal) {
+                    currentGroupState = groupVal;
+                    currentSortState = { criteria: groupVal === 'collection' ? 'year' : 'title', order: 'asc' };
+                    
+                    document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('active'));
+                    const targetBtn = document.querySelector(`.sort-option[data-sort="${groupVal}"]`);
+                    if (targetBtn) targetBtn.classList.add('active');
+                }
+            } else if (params.has('srt')) {
+                // Handle Sorting
                 const sortBy = params.get('srt');
                 const sortOrder = params.get('so') === 'desc' ? 'desc' : 'asc';
-                const isGroupOption = ['genre', 'library', 'collection'].includes(sortBy);
+                
+                currentSortState = { criteria: sortBy, order: sortOrder };
+                currentGroupState = null;
 
-                if (isGroupOption) {
-                    currentGroupState = sortBy;
-                    currentSortState = { criteria: 'title', order: 'asc' };
-                    if (sortBy === 'collection') {
-                        currentSortState = { criteria: 'year', order: 'asc' }; // Your special collection rule
-                    }
-                } else {
-                    currentSortState = { criteria: sortBy, order: sortOrder };
-                    currentGroupState = null;
-                }
-
-                // Sync the UI Buttons
                 document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('active'));
-                let targetBtn;
-                if (isGroupOption) {
-                    targetBtn = document.querySelector(`.sort-option[data-sort="${sortBy}"]`);
-                } else {
-                    targetBtn = document.querySelector(`.sort-option[data-sort="${sortBy}"][data-order="${sortOrder}"]`);
-                }
+                const targetBtn = document.querySelector(`.sort-option[data-sort="${sortBy}"][data-order="${sortOrder}"]`);
                 if (targetBtn) targetBtn.classList.add('active');
             }
 
@@ -2029,7 +2029,65 @@
                 el.innerText = currentFilteredItems.length + " results";
             });
             document.getElementById('main-header').style.display = currentFilteredItems.length === 0 ? 'none' : '';
+
+            // Update the URL
+            updateUrlState();
+
             if (!skipSort) applySort(); else renderPagination();
+        }
+
+        function updateUrlState() {
+            const params = new URLSearchParams();
+
+            // 1. Search Query
+            const sqVal = document.getElementById('searchInput')?.value.trim();
+            if (sqVal) params.set('sq', sqVal);
+
+            // 2. Sort & Group State (Skips adding to URL if it is the default Title A-Z)
+            if (currentGroupState) {
+                const reverseGbMap = { 'genre': 'g', 'library': 'l', 'collection': 'c' };
+                params.set('gb', reverseGbMap[currentGroupState]);
+            } else if (currentSortState.criteria !== 'title' || currentSortState.order !== 'asc') {
+                params.set('srt', currentSortState.criteria);
+                params.set('so', currentSortState.order);
+            }
+
+            // 3. Category Arrays
+            const getCheckedValues = (containerId) => {
+                const container = document.getElementById(containerId);
+                if (!container) return [];
+                return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                            .map(cb => cb.value.replace(/[^a-zA-Z0-9]/g, "").toLowerCase());
+            };
+
+            const mt = getCheckedValues('typeInputs');
+            if (mt.length > 0) params.set('mt', mt.join(','));
+
+            const lib = getCheckedValues('libInputs');
+            if (lib.length > 0) params.set('l', lib.join(','));
+
+            const genre = getCheckedValues('genreInputs');
+            if (genre.length > 0) params.set('g', genre.join(','));
+
+            const collection = getCheckedValues('collectionInputs');
+            if (collection.length > 0) params.set('c', collection.join(','));
+
+            // 4. Extended Filters
+            const hiddenYear = document.getElementById('hidden-year');
+            if (hiddenYear && hiddenYear.checked) params.set('y', hiddenYear.value);
+
+            const hiddenMpaa = document.getElementById('hidden-mpaa');
+            if (hiddenMpaa && hiddenMpaa.checked) params.set('r', hiddenMpaa.value);
+
+            const hiddenRuntime = document.getElementById('hidden-runtime');
+            if (hiddenRuntime && hiddenRuntime.checked) params.set('rt', hiddenRuntime.value);
+
+            const hiddenRating = document.getElementById('hidden-rating');
+            if (hiddenRating && hiddenRating.checked) params.set('cr', hiddenRating.value);
+
+            // 5. Update URL silently
+            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState({}, '', newUrl);
         }
 
         function renderPagination() {

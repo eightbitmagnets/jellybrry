@@ -9,6 +9,7 @@ Designed to help you and your users browse your Jellyfin library with search, so
 - **Rich Media Details:** Details modal with Release Year, Runtime, Community Rating, MPAA Rating, and Director. Info Tooltip with Video, Audio, Subtitle, File Size, and Path details.
 - **Admin & Guest Themes:** Set a server-wide theme as admin, which all users will see initially. Guests can override admin-assigned theme for their browser only by changing the theme in Settings without logging in as Admin.
 - **Robust Syncing:** Delta sync for all users to reflect newly added media and Full sync for Admins if a full library update is needed. All syncing happens in the background with a persistent status notification.
+- **Deep Links & URL Management:** Jellybrry uses deep linking for each filter, search, & sort parameter and two-way syncronization to keep the UI and address bar aligned.
 - **Lock Library Visibility Behind Password:** Admins can hide library behind admin password. For servers you don't share with guests.
 - **No Login on Home Network Option:** For locked libraries, admins can stay logged in at home.
 - **Mobile Optimized:** So guests can browse your library from anywhere.
