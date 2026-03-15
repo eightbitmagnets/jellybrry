@@ -18,6 +18,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body class="{% if locked %}locked-mode{% endif %} theme-{{ config.theme|default('dark') }}">
     <!-- Anti-FOUC -->
@@ -211,36 +212,42 @@
                     <img id="detailsPosterImg" src="" alt="Poster" class="card-poster">
                 </div>
                 <div class="details-info">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px;">
                         <h2 id="detailsTitle" style="margin-top: 0; line-height: 1.2;">Title</h2>
-                        <div class="tooltip-container" style="position: relative; display: inline-block;">
-                            <button id="btnTechInfo" class="btn-icon" style="background: none; border: none; color: var(--text-sub); opacity: 0.7; cursor: pointer; padding: 0; padding-top: 5px;" title="Technical Details">
-                                <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
+                        
+                        <div style="display: flex; align-items: center; gap: 16px; margin-top: 2px;">
+                            
+                            <button id="btnShareItem" class="btn-icon" style="background: none; border: none; color: var(--text-sub); opacity: 0.7; cursor: pointer; padding: 4px; transition: opacity 0.2s;" title="Copy Share Link">
+                                <i class="fas fa-share-nodes" style="font-size: 1.2rem;"></i>
                             </button>
-                            <div id="techInfoBox" class="tech-tooltip tech-info-box">
-                                <div class="tech-scroll-area">
-                                    <div class="tech-group">
-                                        <strong>VIDEO</strong>
-                                        <span id="videoInfo"></span>
-                                    </div>
-                                    <div class="tech-group">
-                                        <strong>AUDIO</strong>
-                                        <span id="audioList"></span>
-                                    </div>
-                                    <div class="tech-group">
-                                        <strong>SUBTITLES</strong>
-                                        <span id="subtitleList"></span>
-                                    </div>
-                                    <div class="tech-group">
-                                        <strong>FILE</strong>
-                                        <span id="fileInfo"></span><br>
-                                        <div id="filePath" class="tech-path-text"></div>
+
+                            <div class="tooltip-container" style="position: relative; display: flex; align-items: center;">
+                                <button id="btnTechInfo" class="btn-icon" style="background: none; border: none; color: var(--text-sub); opacity: 0.7; cursor: pointer; padding: 4px; transition: opacity 0.2s;" title="Technical Details">
+                                    <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
+                                </button>
+                                
+                                <div id="techInfoBox" class="tech-tooltip tech-info-box">
+                                    <div class="tech-scroll-area">
+                                        <div class="tech-group">
+                                            <strong>VIDEO</strong>
+                                            <span id="videoInfo"></span>
+                                        </div>
+                                        <div class="tech-group">
+                                            <strong>AUDIO</strong>
+                                            <span id="audioList"></span>
+                                        </div>
+                                        <div class="tech-group">
+                                            <strong>SUBTITLES</strong>
+                                            <span id="subtitleList"></span>
+                                        </div>
+                                        <div class="tech-group">
+                                            <strong>FILE</strong>
+                                            <span id="fileInfo"></span><br>
+                                            <div id="filePath" class="tech-path-text"></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="details-meta-row">
+                            </div> </div> </div> <div class="details-meta-row">
                         <span id="detailsYear" class="badge">Year</span>
                         <span id="detailsRuntime" class="badge" style="display: none;">Runtime</span>
                         <span id="detailsMpaRating" class="badge" style="display: none;">NR</span>
@@ -482,7 +489,8 @@
                 </button>
 
                 <div id="hiddenLoginForm" style="display: none;">
-                    <form action="{{ url_for('login') }}" method="POST">
+                    <form action="{{ url_for('login') }}" method="POST" id="guestLoginForm">
+                        <input type="hidden" name="return_url" id="loginReturnUrl" value="">
                         <div class="form-group">
                             <label for="loginPass">Password</label>
                             <div class="password-wrapper">
@@ -503,12 +511,28 @@
             {% if is_admin %}
             <form action="{{ url_for('update_settings') }}" method="POST">
                 <input type="hidden" name="theme" id="hiddenThemeInput" value="{{ config.theme }}">
+
+                <!-- SHARE CURRENT RESULTS -->
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <button type="button" id="generateShortlinkBtn" class="btn-outline" style="width: 100%; height: 37px; padding: 0 10px; border-color: var(--border-dim); color: var(--text-main); display: flex; justify-content: center; align-items: center; gap: 8px;">
+                        <i class="fas fa-link"></i> Generate Share Link
+                    </button>
+                    
+                    <div id="shortlinkResultContainer" style="display: none; width: 100%;">
+                        <div class="password-wrapper" id="copyLinkWrapper" title="Click to copy" style="cursor: pointer; width: 100%;">
+                            <input type="text" id="shortlinkResult" readonly style="cursor: pointer; padding: 0 40px 0 10px; height: 37px; border-color: var(--rgb-primary); box-shadow: 0 0 0 1px var(--rgb-primary); width: 100%; margin: 0;" value="">
+                            <i class="fas fa-copy toggle-password" id="copyShortlinkIcon" style="color: var(--text-sub);"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-divider"></div>
                 
                 <div class="form-group">
                     <label for="serverNameInput">Page Headline</label>
                     <input type="text" id="serverNameInput" name="server_name" value="{{ config.server_name|default('Your Media Server', true) }}" placeholder="Your Media Server">
                 </div>
-
+                
                 <div class="form-divider"></div>
 
                 <div class="form-group">
@@ -559,7 +583,7 @@
                 </div>
 
                 <div class="modal-actions">
-                    <a href="{{ url_for('logout') }}" class="btn-danger">Sign Out</a>
+                    <a href="{{ url_for('logout') }}" id="adminLogoutBtn" class="btn-danger">Sign Out</a>
                     <button type="submit" class="btn-primary" style="flex: 1;">Save Changes</button>
                 </div>
             </form>
@@ -584,6 +608,7 @@
         let mediaCache = [];
         let initialTheme = 'dark';
         let tempTheme = null;
+        let lastGeneratedQuery = null;
         const ITEMS_PER_PAGE = 100;
         let currentPage = 1;
         let currentFilteredItems = [];
@@ -595,7 +620,6 @@
         function unlockBodyScroll() {
             document.body.style.overflow = '';
         }
-
      
         document.addEventListener('DOMContentLoaded', () => {
             const flash = document.getElementById('flash-message');
@@ -643,8 +667,11 @@
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('open_settings') === 'true') {
                 openSettings();
-                // Clean URL
-                window.history.replaceState({}, document.title, window.location.pathname);
+                // Clean URL of open_settings param, but keep user filter params
+                urlParams.delete('open_settings');
+                const newSearch = urlParams.toString();
+                const cleanUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+                window.history.replaceState({}, document.title, cleanUrl);
             }
             
             const fallbackSVG = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22200%22%20height%3D%22300%22%20viewBox%3D%220%200%20200%20300%22%3E%3Crect%20fill%3D%22%23333%22%20width%3D%22200%22%20height%3D%22300%22%2F%3E%3Ctext%20fill%3D%22%23777%22%20font-family%3D%22sans-serif%22%20font-size%3D%2220%22%20dy%3D%2210.5%22%20font-weight%3D%22bold%22%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%3ENo%20Image%3C%2Ftext%3E%3C%2Fsvg%3E";
@@ -771,6 +798,7 @@
                     this.style.display = 'none'; // Hide the Admin Signin Button
                     document.getElementById('hiddenLoginForm').style.display = 'block'; // Show the pw form
                     document.getElementById('loginPass').focus(); // Auto-focus the password field
+                    document.getElementById('loginReturnUrl').value = window.location.search;
                 })
             }
 
@@ -832,6 +860,7 @@
                     }
 
                     applySort();
+                    updateUrlState();
                     closeMenu('sortMenu', true);
                     // Scroll to the top
                     window.scrollTo({ top: 0, behavior: 'smooth'});
@@ -949,15 +978,38 @@
                 if (techBox && techBox.style.display === 'block' && !techBox.contains(event.target) && event.target.closest('#btnTechInfo') === null) {
                     techBox.style.display = 'none';
                 }
+
+                // Revert params on Logout
+                document.getElementById('adminLogoutBtn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    // Take the current URL parameters and append them to the logout path
+                    window.location.href = `/logout${window.location.search}`;
+                });
             });
 
             // 1. Always set the default Title A-Z UI first
             const defaultSortBtn = document.querySelector('.sort-option[data-sort="title"][data-order="asc"]');
             if(defaultSortBtn) defaultSortBtn.classList.add('active');
+            const initialParams = new URLSearchParams(window.location.search);
+            const initialItemId = initialParams.get('id');
 
             // 2. If a URL exists, parse it (this will override the default UI). Otherwise, just run the default filter.
             if (window.location.search) { parseUrlState(); } 
             else { filterMedia(false); }
+
+            // 3. Auto-Open Item Details if ID is present
+            if (initialItemId) {
+                const targetItem = mediaCache.find(m => {
+                    const data = JSON.parse(m.element.getAttribute('data-item'));
+                    return data.Id === initialItemId;
+                });
+                
+                if (targetItem) {
+                    const itemData = JSON.parse(targetItem.element.getAttribute('data-item'));
+                    // Slight delay ensures the background grid and filters finish loading first
+                    setTimeout(() => openDetails(itemData), 50);
+                }
+            }
 
             // === MOBILE NAV HANDLERS ===
             const mobileSearchInput = document.getElementById('mobileSearchInput');
@@ -1157,6 +1209,22 @@
             function openSettings() { 
                 lockBodyScroll();
 
+                // Check if URL changed since we last generated share link
+                const genBtn = document.getElementById('generateShortlinkBtn');
+                const resCont = document.getElementById('shortlinkResultContainer');
+                const resInput = document.getElementById('shortlinkResult');
+
+                if (genBtn && resCont) {
+                    // Get the query, but strip out open_settings so it doesn't trigger a false reset
+                    let currentQuery = window.location.search.substring(1).replace(/&?open_settings=true/g, '');
+                    if (lastGeneratedQuery !== currentQuery) {
+                        resCont.style.display = 'none';
+                        genBtn.style.display = 'block';
+                        if (resInput) resInput.value = '';
+                        lastGeneratedQuery = null;
+                    }
+                }
+
                 const filterOpen = document.getElementById('filterMenu').classList.contains('show');
                 const sortOpen = document.getElementById('sortMenu').classList.contains('show');
                 const searchOpen = document.getElementById('mobileSearchInputBar')?.classList.contains('active');
@@ -1196,6 +1264,11 @@
                 if (sortOpen) { closeMenu('sortMenu', false); }
 
                 setActiveNav(null);
+
+                // Add ID to URL
+                const params = new URLSearchParams(window.location.search);
+                params.set('id', item.Id);
+                window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
 
                 // --- 2. INSTANT UI UPDATES (Title, Year, Overview, Poster) ---
                 document.getElementById('detailsTitle').innerText = item.Name;
@@ -1579,6 +1652,125 @@
                     setTimeout(() => { adminForceRebuildBtn.disabled = false; }, 3000);
                 });
             }
+
+            // === ADMIN SHORTLINK GENERATOR ===
+            const generateShortlinkBtn = document.getElementById('generateShortlinkBtn');
+            const shortlinkResultContainer = document.getElementById('shortlinkResultContainer');
+            const shortlinkResult = document.getElementById('shortlinkResult');
+            const copyLinkWrapper = document.getElementById('copyLinkWrapper');
+            const copyShortlinkIcon = document.getElementById('copyShortlinkIcon');
+
+            // --- STATELESS ITEM SHARE BUTTON ---
+            const btnShareItem = document.getElementById('btnShareItem');
+            if (btnShareItem) {
+                btnShareItem.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const icon = btnShareItem.querySelector('i');
+                    const originalClass = icon.className;
+
+                    try {
+                        // Just copy whatever is currently in the address bar!
+                        await navigator.clipboard.writeText(window.location.href);
+                        
+                        // Success State
+                        icon.className = 'fas fa-check';
+                        icon.style.color = '#10b981'; // Green
+                        
+                        setTimeout(() => { 
+                            icon.className = originalClass; 
+                            icon.style.color = '';
+                        }, 2000);
+
+                        // 🎉 CONFETTI
+                        if (typeof confetti === 'function') {
+                            confetti({ 
+                                particleCount: 100, 
+                                spread: 70, 
+                                origin: { y: 0.6 }, 
+                                zIndex: 9999999, // Pops over the modal
+                                colors: ['#7950f2', '#c026d3', '#a78bfa'] 
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Failed to copy: ', err);
+                        alert("Failed to copy link.");
+                    }
+                });
+            }
+
+            // --- ADMIN SHORTLINK BUTTON IN SETTINGS MODAL ---
+            if (generateShortlinkBtn) {
+                generateShortlinkBtn.addEventListener('click', async () => {
+                    const currentQuery = window.location.search.substring(1);
+                    
+                    if (!currentQuery) {
+                        alert("No filters applied! Apply some filters or sorting first to create a custom view.");
+                        return;
+                    }
+
+                    const originalText = generateShortlinkBtn.innerHTML;
+                    generateShortlinkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                    generateShortlinkBtn.disabled = true;
+
+                    try {
+                        const response = await fetch('/api/generate_shortlink', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query: currentQuery })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            shortlinkResult.value = data.short_url;
+                            shortlinkResultContainer.style.display = 'block';
+                            generateShortlinkBtn.style.display = 'none';
+                            
+                            // Save the query so we know what this link belongs to
+                            lastGeneratedQuery = currentQuery;
+                        } else {
+                            alert(data.error || "Failed to generate link.");
+                        }
+                    } catch (error) {
+                        console.error("Error generating shortlink:", error);
+                        alert("Network error.");
+                    } finally {
+                        generateShortlinkBtn.innerHTML = originalText;
+                        generateShortlinkBtn.disabled = false;
+                    }
+                });
+            }
+
+            // --- THE COPY BUTTON & CONFETTI ---
+            if (copyLinkWrapper) {
+                copyLinkWrapper.addEventListener('click', async () => {
+                    try {
+                        await navigator.clipboard.writeText(shortlinkResult.value);
+                        
+                        // Fix the Jolt: Keep the 'toggle-password' class so it stays absolutely positioned!
+                        copyShortlinkIcon.className = 'fas fa-check toggle-password';
+                        copyShortlinkIcon.style.color = '#10b981'; // Success Green
+                        
+                        setTimeout(() => { 
+                            copyShortlinkIcon.className = 'fas fa-copy toggle-password'; 
+                            copyShortlinkIcon.style.color = 'var(--text-sub)';
+                        }, 2000);
+
+                        // 🎉 FIRE THE CONFETTI
+                        if (typeof confetti === 'function') {
+                            confetti({
+                                particleCount: 100,
+                                spread: 70,
+                                origin: { y: 0.6 },
+                                zIndex: 9999999,
+                                colors: ['#7950f2', '#c026d3', '#2563eb']
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Failed to copy: ', err);
+                    }
+                });
+            }
         });
 
         function parseUrlState() {
@@ -1668,6 +1860,12 @@
             // Force tooltip to hide when modal is closed
             const techBox = document.getElementById('techInfoBox');
             if (techBox) techBox.style.display = 'none';
+
+            // Remove ID from URL
+            const params = new URLSearchParams(window.location.search);
+            params.delete('id');
+            const newSearch = params.toString();
+            window.history.replaceState({}, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
 
             modal.classList.remove('active');
             unlockBodyScroll();
@@ -1957,6 +2155,65 @@
             }
         }
 
+        function updateUrlState() {
+            const params = new URLSearchParams();
+
+            // 1. Search Query
+            const sqVal = document.getElementById('searchInput')?.value.trim();
+            if (sqVal) params.set('sq', sqVal);
+
+            // 2. Sort & Group State
+            if (currentGroupState) {
+                const reverseGbMap = { 'genre': 'g', 'library': 'l', 'collection': 'c' };
+                params.set('gb', reverseGbMap[currentGroupState]);
+            } else if (currentSortState.criteria !== 'title' || currentSortState.order !== 'asc') {
+                params.set('srt', currentSortState.criteria);
+                params.set('so', currentSortState.order);
+            }
+
+            // 3. Category Arrays
+            const getCheckedValues = (containerId) => {
+                const container = document.getElementById(containerId);
+                if (!container) return [];
+                return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                            .map(cb => cb.value.replace(/[^a-zA-Z0-9]/g, "").toLowerCase());
+            };
+
+            const mt = getCheckedValues('typeInputs');
+            if (mt.length > 0) params.set('mt', mt.join(','));
+
+            const lib = getCheckedValues('libInputs');
+            if (lib.length > 0) params.set('l', lib.join(','));
+
+            const genre = getCheckedValues('genreInputs');
+            if (genre.length > 0) params.set('g', genre.join(','));
+
+            const collection = getCheckedValues('collectionInputs');
+            if (collection.length > 0) params.set('c', collection.join(','));
+
+            // 4. Extended Filters & URL IDs
+            const hiddenYear = document.getElementById('hidden-year');
+            if (hiddenYear && hiddenYear.checked) params.set('y', hiddenYear.value);
+
+            const hiddenMpaa = document.getElementById('hidden-mpaa');
+            if (hiddenMpaa && hiddenMpaa.checked) params.set('r', hiddenMpaa.value);
+
+            const hiddenRuntime = document.getElementById('hidden-runtime');
+            if (hiddenRuntime && hiddenRuntime.checked) params.set('rt', hiddenRuntime.value);
+
+            const hiddenRating = document.getElementById('hidden-rating');
+            if (hiddenRating && hiddenRating.checked) params.set('cr', hiddenRating.value);
+
+            const existingUrlParams = new URLSearchParams(window.location.search);
+            if (existingUrlParams.has('id')) {
+                params.set('id', existingUrlParams.get('id'));
+            }
+
+            // 5. Update URL silently
+            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState({}, '', newUrl);
+        }
+
         function filterMedia(skipSort = false) {
             let textFilter = document.getElementById('searchInput').value.toLowerCase();
             currentPage = 1;
@@ -2029,6 +2286,7 @@
                 el.innerText = currentFilteredItems.length + " results";
             });
             document.getElementById('main-header').style.display = currentFilteredItems.length === 0 ? 'none' : '';
+            updateUrlState();
             if (!skipSort) applySort(); else renderPagination();
         }
 

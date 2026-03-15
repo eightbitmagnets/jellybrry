@@ -4,15 +4,20 @@ import json
 import time
 import requests
 import threading
+import sqlite3
+import string
+import random
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from datetime import timedelta, datetime, timezone
 from collections import defaultdict
 from urllib.parse import urlparse
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # For session management
 app.permanent_session_lifetime = timedelta(days=7)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 @app.context_processor
 def inject_version():
@@ -21,11 +26,33 @@ def inject_version():
 # === Configuration Paths ===
 CONFIG_DIR = "/config"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")
-# Increment cache version to force re-fetch
 CACHE_FILE = os.path.join(CONFIG_DIR, "library_cache_v20.json")
+DB_FILE = os.path.join(CONFIG_DIR, "jellybrry.db")
 
 # Ensure config directory exists
 os.makedirs(CONFIG_DIR, exist_ok=True)
+
+# === Database Initialization ===
+def get_db_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row # This lets us access columns by name (e.g., row['raw_query'])
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS shared_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            short_code TEXT UNIQUE NOT NULL,
+            raw_query TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Run the DB init immediately on boot
+init_db()
 
 # Default Theme changed to 'dark'
 DEFAULT_THEME = os.environ.get('THEME', 'dark').lower()
@@ -372,7 +399,6 @@ def fetch_library(force_refresh=False, delta_sync=False):
     return final_items
 
 # === Routes ===
-
 def background_sync_worker(force_refresh=True, delta_sync=False):
     """The Detached Worker that runs invisibly in the background."""
     global IS_SYNCING
@@ -414,6 +440,63 @@ def proxy_image():
         return (resp.content, resp.status_code, resp.headers.items())
     except Exception as e:
         return str(e), 500
+
+# --- SHORTLINKS ENGINE ---
+def generate_short_code(length=6):
+    """Generates a random alphanumeric string."""
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choice(characters) for i in range(length))
+
+@app.route('/api/generate_shortlink', methods=['POST'])
+def api_generate_shortlink():
+    # Security check: Only admins can generate persistent shortlinks
+    if not session.get('is_admin'):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    raw_query = data.get('query')
+
+    if not raw_query:
+        return jsonify({"error": "No query provided"}), 400
+
+    conn = get_db_connection()
+    try:
+        # 1. Check if this exact view has already been generated
+        existing = conn.execute('SELECT short_code FROM shared_links WHERE raw_query = ?', (raw_query,)).fetchone()
+        
+        if existing:
+            # If it exists, just recycle the old code!
+            short_code = existing['short_code']
+        else:
+            # 2. If it's new, mint a fresh code and save it
+            short_code = generate_short_code()
+            try:
+                conn.execute('INSERT INTO shared_links (short_code, raw_query) VALUES (?, ?)', (short_code, raw_query))
+            except sqlite3.IntegrityError:
+                # In the rare event of a collision, try one more time
+                short_code = generate_short_code()
+                conn.execute('INSERT INTO shared_links (short_code, raw_query) VALUES (?, ?)', (short_code, raw_query))
+            conn.commit()
+    finally:
+        conn.close()
+
+    # Return the full URL for the frontend to copy
+    full_url = url_for('redirect_shortlink', short_code=short_code, _external=True)
+    return jsonify({"short_url": full_url, "short_code": short_code})
+
+@app.route('/s/<short_code>')
+def redirect_shortlink(short_code):
+    """Reads the shortcode, looks up the query, and bounces the user to the main page."""
+    conn = get_db_connection()
+    link = conn.execute('SELECT raw_query FROM shared_links WHERE short_code = ?', (short_code,)).fetchone()
+    conn.close()
+    
+    if link:
+        # Bounces them to /?mt=movie&g=action etc.
+        return redirect(f"/?{link['raw_query']}")
+    else:
+        flash("Shared link not found or expired.")
+        return redirect(url_for('index'))
 
 # Lazy Load People, MediaSources, Path
 @app.route('/api/item/<item_id>')
@@ -531,19 +614,25 @@ def login():
     input_password = request.form.get('password')
     stored_hash = config.get('admin_password')
 
+    # Grab the URL the user was looking at
+    return_url = request.form.get('return_url', '')
+
     if stored_hash and check_password_hash(stored_hash, input_password):
         session.permanent = True
         session['is_admin'] = True
         flash('Logged in successfully.')
-        return redirect(url_for('index', open_settings='true'))
+
+        # Smart Redirect: Keep their filters, but still force settings open
+        connector = '&' if '?' in return_url else '?'
+        return redirect(f"/{return_url}{connector}open_settings=true")
     else:
         flash('Incorrect password.')
-    return redirect(url_for('index'))
+    return redirect(f"/{return_url}")
 
 @app.route('/logout')
 def logout():
     session.pop('is_admin', None)
-    return redirect(url_for('index'))
+    return redirect(request.url.replace('/logout', '/'))
 
 @app.route('/update_settings', methods=['POST'])
 def update_settings():
