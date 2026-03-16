@@ -339,6 +339,8 @@
             <input type="checkbox" class="filter-checkbox" id="hidden-mpaa" value="">
             <input type="checkbox" class="filter-checkbox" id="hidden-runtime" value="">
             <input type="checkbox" class="filter-checkbox" id="hidden-rating" value="">
+            <input type="checkbox" class="filter-checkbox" id="hidden-da" value="">
+            <input type="checkbox" class="filter-checkbox" id="hidden-al" value="">
         </div>
     </div>
 
@@ -1698,6 +1700,76 @@
                 });
             }
 
+            // === SNAPSHOT GENERATOR ===
+            const generateSnapshotBtn = document.getElementById('generateSnapshotBtn');
+            const snapshotDays = document.getElementById('snapshotDays');
+            const snapshotResultContainer = document.getElementById('snapshotResultContainer');
+            const snapshotResult = document.getElementById('snapshotResult');
+            const copySnapshotWrapper = document.getElementById('copySnapshotWrapper');
+            const copySnapshotIcon = document.getElementById('copySnapshotIcon');
+
+            if (generateSnapshotBtn) {
+                generateSnapshotBtn.addEventListener('click', async () => {
+                    const days = parseInt(snapshotDays.value) || 7;
+                    const endDate = new Date();
+                    const startDate = new Date();
+                    startDate.setDate(endDate.getDate() - days);
+
+                    // Format strictly as YYYY-MM-DD using local time
+                    const formatDate = (date) => {
+                        return date.getFullYear() + '-' + 
+                               String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                               String(date.getDate()).padStart(2, '0');
+                    };
+                    
+                    const formattedStart = formatDate(startDate);
+                    const formattedEnd = formatDate(endDate);
+
+                    // Hardcode the query: Sort by Date Added (Newest) + The frozen range!
+                    const query = `srt=date&so=desc&da=${formattedStart}_${formattedEnd}`;
+
+                    const originalHTML = generateSnapshotBtn.innerHTML;
+                    generateSnapshotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                    generateSnapshotBtn.disabled = true;
+
+                    try {
+                        const response = await fetch('/api/generate_shortlink', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query: query })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            snapshotResult.value = data.short_url;
+                            snapshotResultContainer.style.display = 'block';
+                            generateSnapshotBtn.style.display = 'none';
+                        } else { alert(data.error); }
+                    } catch(e) { alert("Network error."); } 
+                    finally {
+                        generateSnapshotBtn.innerHTML = originalHTML;
+                        generateSnapshotBtn.disabled = false;
+                    }
+                });
+            }
+
+            // Copy & Confetti logic for the snapshot
+            if (copySnapshotWrapper) {
+                copySnapshotWrapper.addEventListener('click', async () => {
+                    try {
+                        await navigator.clipboard.writeText(snapshotResult.value);
+                        copySnapshotIcon.className = 'fas fa-check toggle-password';
+                        copySnapshotIcon.style.color = '#10b981';
+                        setTimeout(() => { 
+                            copySnapshotIcon.className = 'fas fa-copy toggle-password'; 
+                            copySnapshotIcon.style.color = 'var(--text-sub)';
+                        }, 2000);
+                        if (typeof confetti === 'function') {
+                            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, zIndex: 9999999, colors: ['#7950f2', '#c026d3', '#a78bfa'] });
+                        }
+                    } catch (err) { console.error('Failed to copy: ', err); }
+                });
+            }
+
             // --- ADMIN SHORTLINK BUTTON IN SETTINGS MODAL ---
             if (generateShortlinkBtn) {
                 generateShortlinkBtn.addEventListener('click', async () => {
@@ -1835,7 +1907,7 @@
             }
 
             // 4. Extended Filters (Year, MPAA, Runtime, Community Rating)
-            const hiddenMaps = { y: 'hidden-year', r: 'hidden-mpaa', rt: 'hidden-runtime', cr: 'hidden-rating' };
+            const hiddenMaps = { y: 'hidden-year', r: 'hidden-mpaa', rt: 'hidden-runtime', cr: 'hidden-rating', da: 'hidden-da', al: 'hidden-al' };
             
             for (const [shortCode, inputId] of Object.entries(hiddenMaps)) {
                 if (params.has(shortCode)) {
@@ -2209,6 +2281,12 @@
                 params.set('id', existingUrlParams.get('id'));
             }
 
+            const hiddenDa = document.getElementById('hidden-da');
+            if (hiddenDa && hiddenDa.checked) params.set('da', hiddenDa.value);
+
+            const hiddenAl = document.getElementById('hidden-al');
+            if (hiddenAl && hiddenAl.checked) params.set('al', hiddenAl.value);
+
             // 5. Update URL silently
             const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
             window.history.replaceState({}, '', newUrl);
@@ -2243,6 +2321,10 @@
             const activeMpaa = hiddenMpaa && hiddenMpaa.checked ? hiddenMpaa.value : null;
             const hiddenRating = document.getElementById('hidden-rating');
             const activeRating = hiddenRating && hiddenRating.checked ? hiddenRating.value : null;
+            const hiddenDa = document.getElementById('hidden-da');
+            const activeDa = hiddenDa && hiddenDa.checked ? hiddenDa.value : null;
+            const hiddenAl = document.getElementById('hidden-al');
+            const activeAl = hiddenAl && hiddenAl.checked ? parseInt(hiddenAl.value) : null;
             
             currentFilteredItems = [];
             for (let item of mediaCache) {
@@ -2272,6 +2354,30 @@
                     const [floor, ceiling] = activeRating.split('-').map(Number);
                     matchesRating = (item.rating >= floor && item.rating < ceiling);
                 }
+
+                let matchesDateAdded = true;
+                if (activeAl || activeDa) {
+                    const originalData = JSON.parse(item.element.getAttribute('data-item'));
+                    const itemDate = new Date(originalData.DateCreated || 0).getTime();
+                    
+                    if (activeAl) {
+                        // Rolling Window: Snap to midnight (00:00:00) of X days ago
+                        const cutoffDate = new Date();
+                        cutoffDate.setDate(cutoffDate.getDate() - activeAl);
+                        cutoffDate.setHours(0, 0, 0, 0); 
+                        
+                        if (itemDate < cutoffDate.getTime()) matchesDateAdded = false;
+                        
+                    } else if (activeDa) {
+                        // Frozen Range (da=YYYY-MM-DD_YYYY-MM-DD)
+                        const dates = activeDa.split('_');
+                        if (dates.length === 2) {
+                            const startDate = new Date(dates[0] + 'T00:00:00').getTime();
+                            const endDate = new Date(dates[1] + 'T23:59:59').getTime();
+                            if (itemDate < startDate || itemDate > endDate) matchesDateAdded = false;
+                        }
+                    }
+                }
                 
                 let matchesAlpha = true;
                 if (currentAlphaFilter) {
@@ -2279,7 +2385,7 @@
                     matchesAlpha = currentAlphaFilter === '#' ? /^[^a-z]/i.test(cleanT) : cleanT.startsWith(currentAlphaFilter.toLowerCase());
                 }
 
-                if (matchesText && matchesType && matchesLib && matchesGenre && matchesCollection && matchesAlpha && matchesYear && matchesRuntime && matchesMpaa && matchesRating) { currentFilteredItems.push(item); }
+                if (matchesText && matchesType && matchesLib && matchesGenre && matchesCollection && matchesAlpha && matchesYear && matchesRuntime && matchesMpaa && matchesRating && matchesDateAdded) { currentFilteredItems.push(item); }
             }
 
             document.querySelectorAll('.count').forEach(el => {
