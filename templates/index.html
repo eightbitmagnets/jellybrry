@@ -517,13 +517,77 @@
                 <!-- SHARE CURRENT RESULTS -->
                 <div class="form-group" style="margin-bottom: 20px;">
                     <button type="button" id="generateShortlinkBtn" class="btn-outline" style="width: 100%; height: 37px; padding: 0 10px; border-color: var(--border-dim); color: var(--text-main); display: flex; justify-content: center; align-items: center; gap: 8px;">
-                        <i class="fas fa-link"></i> Generate Share Link
+                        <i class="fas fa-link"></i> Share Current Results
                     </button>
                     
                     <div id="shortlinkResultContainer" style="display: none; width: 100%;">
                         <div class="password-wrapper" id="copyLinkWrapper" title="Click to copy" style="cursor: pointer; width: 100%;">
                             <input type="text" id="shortlinkResult" readonly style="cursor: pointer; padding: 0 40px 0 10px; height: 37px; border-color: var(--rgb-primary); box-shadow: 0 0 0 1px var(--rgb-primary); width: 100%; margin: 0;" value="">
                             <i class="fas fa-copy toggle-password" id="copyShortlinkIcon" style="color: var(--text-sub);"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SHARE RECENTLY ADDED (STATIC)-->
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <!-- Recently Added Label -->
+                    <div style="margin-bottom: 8px;">
+                        <label style="margin-bottom: 0;">Share Recently Added</label>
+                    </div>
+                    
+                    <!-- Duration Selection -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center;">
+                        <input type="number" id="snapshotNum" value="7" min="1" style="width: 80px; text-align: center; height: 42px;">
+                        <select id="snapshotUnit" style="flex: 1; height: 42px; margin-bottom: 0;">
+                            <option value="Hours">Hours</option>
+                            <option value="Days" selected>Days</option>
+                            <option value="Weeks">Weeks</option>
+                            <option value="Months">Months</option>
+                        </select>
+                        <span style="color: var(--text-sub); white-space: nowrap;">to now</span>
+                    </div>
+
+                    <!-- SET UP RECURRING LINK GEN -->
+                    <!-- Create Recurring Checkbox -->
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
+                            <input type="checkbox" id="enableRecurring" class="filter-checkbox" style="margin: 0;">
+                            Create Recurring Automation
+                        </label>
+                    </div>
+
+                    
+                    <div id="recurringSettings" style="display: none; margin-bottom: 15px; padding: 12px; background: var(--bg-surface); border: 1px solid var(--border-dim); border-radius: 6px;">
+                        <!-- Repeat Frequency Selection -->
+                        <div style="margin-bottom: 12px;">
+                            <label style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 4px; display: block;">Repeat every:</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="number" id="recurNum" value="1" min="1" style="width: 60px; text-align: center; height: 36px; background: var(--bg-input); border: 1px solid var(--border-dim); color: var(--text-main); border-radius: 4px;">
+                                <select id="recurUnit" style="flex: 1; height: 36px; margin-bottom: 0;">
+                                    <option value="Days">Days</option>
+                                    <option value="Weeks" selected>Weeks</option>
+                                    <option value="Months">Months</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Run Immediately Checkbox -->
+                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; color: var(--text-main); margin-bottom: 0;">
+                            <input type="checkbox" id="runImmediately" class="filter-checkbox" style="margin: 0;" checked>
+                            Run first generation immediately
+                        </label>
+                    </div>
+
+                    <!-- Generate Recently Added Link Button -->
+                    <button type="button" id="generateSnapshotBtn" class="btn-outline" style="width: 100%; height: 37px; display: flex; justify-content: center; align-items: center; gap: 8px; border-color: var(--border-dim); color: var(--text-main);">
+                        <i class="fas fa-camera"></i> Generate Snapshot
+                    </button>
+                    
+                    <!-- Copy Link Field -->
+                    <div id="snapshotResultContainer" style="display: none; width: 100%; margin-top: 10px;">
+                        <div class="password-wrapper" id="copySnapshotWrapper" title="Click to copy" style="cursor: pointer; width: 100%;">
+                            <input type="text" id="snapshotResult" readonly style="cursor: pointer; padding: 0 40px 0 10px; height: 42px; font-size: 1rem; border-color: var(--rgb-primary); box-shadow: 0 0 0 1px var(--rgb-primary); width: 100%; margin: 0;" value="">
+                            <i class="fas fa-copy toggle-password" id="copySnapshotIcon" style="color: var(--text-sub);"></i>
                         </div>
                     </div>
                 </div>
@@ -1655,88 +1719,144 @@
                 });
             }
 
-            // === ADMIN SHORTLINK GENERATOR ===
+            // === MASTER COPY & CONFETTI UTILITY ===
+            async function copyWithConfetti(textToCopy, iconElement) {
+                try {
+                    await navigator.clipboard.writeText(textToCopy);
+                    const originalClass = iconElement.className;
+                    const isToggle = originalClass.includes('toggle-password');
+                    
+                    iconElement.className = isToggle ? 'fas fa-check toggle-password' : 'fas fa-check';
+                    iconElement.style.color = '#10b981';
+                    
+                    setTimeout(() => { 
+                        iconElement.className = originalClass; 
+                        iconElement.style.color = isToggle ? 'var(--text-sub)' : '';
+                    }, 2000);
+
+                    if (typeof confetti === 'function') {
+                        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, zIndex: 9999999, colors: ['#7950f2', '#c026d3', '#a78bfa'] });
+                    }
+                } catch (err) {
+                    console.error('Failed to copy: ', err);
+                    alert("Failed to copy link.");
+                }
+            }
+
+            // --- 1. STATELESS ITEM SHARE BUTTON ---
+            const btnShareItem = document.getElementById('btnShareItem');
+            if (btnShareItem) {
+                btnShareItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    copyWithConfetti(window.location.href, btnShareItem.querySelector('i'));
+                });
+            }
+
+            // --- 2. SHARE CURRENT VIEW BUTTON (ADMIN) ---
             const generateShortlinkBtn = document.getElementById('generateShortlinkBtn');
             const shortlinkResultContainer = document.getElementById('shortlinkResultContainer');
             const shortlinkResult = document.getElementById('shortlinkResult');
             const copyLinkWrapper = document.getElementById('copyLinkWrapper');
             const copyShortlinkIcon = document.getElementById('copyShortlinkIcon');
 
-            // --- STATELESS ITEM SHARE BUTTON ---
-            const btnShareItem = document.getElementById('btnShareItem');
-            if (btnShareItem) {
-                btnShareItem.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const icon = btnShareItem.querySelector('i');
-                    const originalClass = icon.className;
+            if (generateShortlinkBtn) {
+                generateShortlinkBtn.addEventListener('click', async () => {
+                    const currentQuery = window.location.search.substring(1);
+                    if (!currentQuery) return alert("No filters applied! Apply some filters or sorting first.");
+                    
+                    const originalText = generateShortlinkBtn.innerHTML;
+                    generateShortlinkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                    generateShortlinkBtn.disabled = true;
 
                     try {
-                        // Just copy whatever is currently in the address bar!
-                        await navigator.clipboard.writeText(window.location.href);
-                        
-                        // Success State
-                        icon.className = 'fas fa-check';
-                        icon.style.color = '#10b981'; // Green
-                        
-                        setTimeout(() => { 
-                            icon.className = originalClass; 
-                            icon.style.color = '';
-                        }, 2000);
-
-                        // 🎉 CONFETTI
-                        if (typeof confetti === 'function') {
-                            confetti({ 
-                                particleCount: 100, 
-                                spread: 70, 
-                                origin: { y: 0.6 }, 
-                                zIndex: 9999999, // Pops over the modal
-                                colors: ['#7950f2', '#c026d3', '#a78bfa'] 
-                            });
-                        }
-                    } catch (err) {
-                        console.error('Failed to copy: ', err);
-                        alert("Failed to copy link.");
-                    }
+                        const response = await fetch('/api/generate_shortlink', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: currentQuery })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            shortlinkResult.value = data.short_url;
+                            shortlinkResultContainer.style.display = 'block';
+                            generateShortlinkBtn.style.display = 'none';
+                            lastGeneratedQuery = currentQuery;
+                        } else { alert(data.error); }
+                    } catch (error) { alert("Network error."); } 
+                    finally { generateShortlinkBtn.innerHTML = originalText; generateShortlinkBtn.disabled = false; }
                 });
             }
 
-            // === SNAPSHOT GENERATOR ===
+            if (copyLinkWrapper) copyLinkWrapper.addEventListener('click', () => copyWithConfetti(shortlinkResult.value, copyShortlinkIcon));
+
+            
+            // --- 3. SHARE RECENTLY ADDED GENERATOR ---
             const generateSnapshotBtn = document.getElementById('generateSnapshotBtn');
-            const snapshotDays = document.getElementById('snapshotDays');
+            const snapshotNum = document.getElementById('snapshotNum');
+            const snapshotUnit = document.getElementById('snapshotUnit');
             const snapshotResultContainer = document.getElementById('snapshotResultContainer');
             const snapshotResult = document.getElementById('snapshotResult');
             const copySnapshotWrapper = document.getElementById('copySnapshotWrapper');
             const copySnapshotIcon = document.getElementById('copySnapshotIcon');
+            
+            // Recurring UI Elements
+            const enableRecurring = document.getElementById('enableRecurring');
+            const recurringSettings = document.getElementById('recurringSettings');
+            const runImmediately = document.getElementById('runImmediately');
+            const snapshotBtnText = generateSnapshotBtn ? generateSnapshotBtn.querySelector('span') : null;
+            const snapshotBtnIcon = generateSnapshotBtn ? generateSnapshotBtn.querySelector('i') : null;
 
+            // UI Morphing Logic
+            function updateSnapshotBtnUI() {
+                if (!generateSnapshotBtn) return;
+                
+                if (enableRecurring.checked) {
+                    recurringSettings.style.display = 'block';
+                    generateSnapshotBtn.classList.remove('btn-outline');
+                    generateSnapshotBtn.classList.add('btn-primary'); // Make it pop!
+                    if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-save';
+                    
+                    if (snapshotBtnText) {
+                        snapshotBtnText.innerText = runImmediately.checked ? 'Save & Generate Now' : 'Save Automation';
+                    }
+                } else {
+                    recurringSettings.style.display = 'none';
+                    generateSnapshotBtn.classList.remove('btn-primary');
+                    generateSnapshotBtn.classList.add('btn-outline');
+                    if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-camera';
+                    if (snapshotBtnText) snapshotBtnText.innerText = 'Generate Snapshot';
+                }
+            }
+
+            if (enableRecurring && runImmediately) {
+                enableRecurring.addEventListener('change', updateSnapshotBtnUI);
+                runImmediately.addEventListener('change', updateSnapshotBtnUI);
+            }
+
+            // Button Click Logic
             if (generateSnapshotBtn) {
                 generateSnapshotBtn.addEventListener('click', async () => {
-                    const days = parseInt(snapshotDays.value) || 7;
+                    const num = parseInt(snapshotNum.value) || 7;
+                    const unit = snapshotUnit.value;
                     const endDate = new Date();
                     const startDate = new Date();
-                    startDate.setDate(endDate.getDate() - days);
 
-                    // Format strictly as YYYY-MM-DD using local time
-                    const formatDate = (date) => {
-                        return date.getFullYear() + '-' + 
-                               String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                               String(date.getDate()).padStart(2, '0');
+                    if (unit === 'Hours') startDate.setHours(startDate.getHours() - num);
+                    else if (unit === 'Days') startDate.setDate(startDate.getDate() - num);
+                    else if (unit === 'Weeks') startDate.setDate(startDate.getDate() - (num * 7));
+                    else if (unit === 'Months') startDate.setMonth(startDate.getMonth() - num);
+
+                    const formatIsoLocal = (d) => {
+                        const pad = (n) => String(n).padStart(2, '0');
+                        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
                     };
                     
-                    const formattedStart = formatDate(startDate);
-                    const formattedEnd = formatDate(endDate);
-
-                    // Hardcode the query: Sort by Date Added (Newest) + The frozen range!
-                    const query = `srt=date&so=desc&da=${formattedStart}_${formattedEnd}`;
-
+                    const query = `srt=date&so=desc&da=${formatIsoLocal(startDate)}_${formatIsoLocal(endDate)}`;
+                    
                     const originalHTML = generateSnapshotBtn.innerHTML;
                     generateSnapshotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
                     generateSnapshotBtn.disabled = true;
 
                     try {
                         const response = await fetch('/api/generate_shortlink', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ query: query })
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: query })
                         });
                         const data = await response.json();
                         if (response.ok) {
@@ -1745,104 +1865,11 @@
                             generateSnapshotBtn.style.display = 'none';
                         } else { alert(data.error); }
                     } catch(e) { alert("Network error."); } 
-                    finally {
-                        generateSnapshotBtn.innerHTML = originalHTML;
-                        generateSnapshotBtn.disabled = false;
-                    }
+                    finally { generateSnapshotBtn.innerHTML = originalHTML; generateSnapshotBtn.disabled = false; }
                 });
             }
 
-            // Copy & Confetti logic for the snapshot
-            if (copySnapshotWrapper) {
-                copySnapshotWrapper.addEventListener('click', async () => {
-                    try {
-                        await navigator.clipboard.writeText(snapshotResult.value);
-                        copySnapshotIcon.className = 'fas fa-check toggle-password';
-                        copySnapshotIcon.style.color = '#10b981';
-                        setTimeout(() => { 
-                            copySnapshotIcon.className = 'fas fa-copy toggle-password'; 
-                            copySnapshotIcon.style.color = 'var(--text-sub)';
-                        }, 2000);
-                        if (typeof confetti === 'function') {
-                            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, zIndex: 9999999, colors: ['#7950f2', '#c026d3', '#a78bfa'] });
-                        }
-                    } catch (err) { console.error('Failed to copy: ', err); }
-                });
-            }
-
-            // --- ADMIN SHORTLINK BUTTON IN SETTINGS MODAL ---
-            if (generateShortlinkBtn) {
-                generateShortlinkBtn.addEventListener('click', async () => {
-                    const currentQuery = window.location.search.substring(1);
-                    
-                    if (!currentQuery) {
-                        alert("No filters applied! Apply some filters or sorting first to create a custom view.");
-                        return;
-                    }
-
-                    const originalText = generateShortlinkBtn.innerHTML;
-                    generateShortlinkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-                    generateShortlinkBtn.disabled = true;
-
-                    try {
-                        const response = await fetch('/api/generate_shortlink', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ query: currentQuery })
-                        });
-
-                        const data = await response.json();
-
-                        if (response.ok) {
-                            shortlinkResult.value = data.short_url;
-                            shortlinkResultContainer.style.display = 'block';
-                            generateShortlinkBtn.style.display = 'none';
-                            
-                            // Save the query so we know what this link belongs to
-                            lastGeneratedQuery = currentQuery;
-                        } else {
-                            alert(data.error || "Failed to generate link.");
-                        }
-                    } catch (error) {
-                        console.error("Error generating shortlink:", error);
-                        alert("Network error.");
-                    } finally {
-                        generateShortlinkBtn.innerHTML = originalText;
-                        generateShortlinkBtn.disabled = false;
-                    }
-                });
-            }
-
-            // --- THE COPY BUTTON & CONFETTI ---
-            if (copyLinkWrapper) {
-                copyLinkWrapper.addEventListener('click', async () => {
-                    try {
-                        await navigator.clipboard.writeText(shortlinkResult.value);
-                        
-                        // Fix the Jolt: Keep the 'toggle-password' class so it stays absolutely positioned!
-                        copyShortlinkIcon.className = 'fas fa-check toggle-password';
-                        copyShortlinkIcon.style.color = '#10b981'; // Success Green
-                        
-                        setTimeout(() => { 
-                            copyShortlinkIcon.className = 'fas fa-copy toggle-password'; 
-                            copyShortlinkIcon.style.color = 'var(--text-sub)';
-                        }, 2000);
-
-                        // 🎉 FIRE THE CONFETTI
-                        if (typeof confetti === 'function') {
-                            confetti({
-                                particleCount: 100,
-                                spread: 70,
-                                origin: { y: 0.6 },
-                                zIndex: 9999999,
-                                colors: ['#7950f2', '#c026d3', '#2563eb']
-                            });
-                        }
-                    } catch (err) {
-                        console.error('Failed to copy: ', err);
-                    }
-                });
-            }
+            if (copySnapshotWrapper) copySnapshotWrapper.addEventListener('click', () => copyWithConfetti(snapshotResult.value, copySnapshotIcon));
         });
 
         function parseUrlState() {
@@ -2369,11 +2396,12 @@
                         if (itemDate < cutoffDate.getTime()) matchesDateAdded = false;
                         
                     } else if (activeDa) {
-                        // Frozen Range (da=YYYY-MM-DD_YYYY-MM-DD)
+                        // Frozen Range (da=YYYY-MM-DD_YYYY-MM-DD or with THH:mm)
                         const dates = activeDa.split('_');
                         if (dates.length === 2) {
-                            const startDate = new Date(dates[0] + 'T00:00:00').getTime();
-                            const endDate = new Date(dates[1] + 'T23:59:59').getTime();
+                            // If it has a 'T', use exact time. Otherwise, default to midnight/11:59pm for legacy links.
+                            const startDate = new Date(dates[0].includes('T') ? dates[0] : dates[0] + 'T00:00:00').getTime();
+                            const endDate = new Date(dates[1].includes('T') ? dates[1] : dates[1] + 'T23:59:59').getTime();
                             if (itemDate < startDate || itemDate > endDate) matchesDateAdded = false;
                         }
                     }
