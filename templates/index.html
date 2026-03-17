@@ -515,55 +515,54 @@
                 <input type="hidden" name="theme" id="hiddenThemeInput" value="{{ config.theme }}">
 
                 <!-- SHARE CURRENT RESULTS -->
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <button type="button" id="generateShortlinkBtn" class="btn-outline" style="width: 100%; height: 37px; padding: 0 10px; border-color: var(--border-dim); color: var(--text-main); display: flex; justify-content: center; align-items: center; gap: 8px;">
-                        <i class="fas fa-link"></i> Share Current Results
+                <div class="form-group">
+                    <button type="button" id="generateShortlinkBtn" class="btn-outline btn-generate">
+                        <i class="fas fa-link"></i> <span>Share Current Results</span>
                     </button>
                     
-                    <div id="shortlinkResultContainer" style="display: none; width: 100%;">
-                        <div class="password-wrapper" id="copyLinkWrapper" title="Click to copy" style="cursor: pointer; width: 100%;">
-                            <input type="text" id="shortlinkResult" readonly style="cursor: pointer; padding: 0 40px 0 10px; height: 37px; border-color: var(--rgb-primary); box-shadow: 0 0 0 1px var(--rgb-primary); width: 100%; margin: 0;" value="">
-                            <i class="fas fa-copy toggle-password" id="copyShortlinkIcon" style="color: var(--text-sub);"></i>
+                    <div id="shortlinkResultContainer" class="result-container" style="display: none;">
+                        <div class="password-wrapper copy-link-wrapper" id="copyLinkWrapper" title="Click to copy">
+                            <input type="text" id="shortlinkResult" class="copy-link-input" readonly value="">
+                            <i class="fas fa-copy toggle-password" id="copyShortlinkIcon"></i>
                         </div>
                     </div>
                 </div>
 
                 <!-- SHARE RECENTLY ADDED (STATIC)-->
-                <div class="form-group" style="margin-bottom: 20px;">
+                <div class="form-group">
                     <!-- Recently Added Label -->
-                    <div style="margin-bottom: 8px;">
-                        <label style="margin-bottom: 0;">Share Recently Added</label>
+                    <div class="settings-label-group">
+                        <label>Share Recently Added</label>
                     </div>
                     
                     <!-- Duration Selection -->
-                    <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center;">
-                        <input type="number" id="snapshotNum" value="7" min="1" style="width: 80px; text-align: center; height: 42px;">
-                        <select id="snapshotUnit" style="flex: 1; height: 42px; margin-bottom: 0;">
+                    <div class="input-group-flex">
+                        <input type="number" id="snapshotNum" class="number-input-sm" value="7" min="1">
+                        <select id="snapshotUnit" class="select-flex">
                             <option value="Hours">Hours</option>
                             <option value="Days" selected>Days</option>
                             <option value="Weeks">Weeks</option>
                             <option value="Months">Months</option>
                         </select>
-                        <span style="color: var(--text-sub); white-space: nowrap;">to now</span>
+                        <span class="input-suffix">to now</span>
                     </div>
 
                     <!-- SET UP RECURRING LINK GEN -->
                     <!-- Create Recurring Checkbox -->
                     <div style="margin-bottom: 12px;">
-                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
-                            <input type="checkbox" id="enableRecurring" class="filter-checkbox" style="margin: 0;">
-                            Create Recurring Automation
+                        <label class="checkbox-label-inline">
+                            <input type="checkbox" id="enableRecurring" class="filter-checkbox">
+                            Recurring
                         </label>
                     </div>
-
                     
-                    <div id="recurringSettings" style="display: none; margin-bottom: 15px; padding: 12px; background: var(--bg-surface); border: 1px solid var(--border-dim); border-radius: 6px;">
+                    <div id="recurringSettings" class="settings-sub-panel" style="display: none;">
                         <!-- Repeat Frequency Selection -->
                         <div style="margin-bottom: 12px;">
-                            <label style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 4px; display: block;">Repeat every:</label>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <input type="number" id="recurNum" value="1" min="1" style="width: 60px; text-align: center; height: 36px; background: var(--bg-input); border: 1px solid var(--border-dim); color: var(--text-main); border-radius: 4px;">
-                                <select id="recurUnit" style="flex: 1; height: 36px; margin-bottom: 0;">
+                            <label class="sub-label">Repeat every:</label>
+                            <div class="input-group-flex no-margin">
+                                <input type="number" id="recurNum" class="number-input-xs" value="1" min="1">
+                                <select id="recurUnit" class="select-flex-sm">
                                     <option value="Days">Days</option>
                                     <option value="Weeks" selected>Weeks</option>
                                     <option value="Months">Months</option>
@@ -572,22 +571,28 @@
                         </div>
 
                         <!-- Run Immediately Checkbox -->
-                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; color: var(--text-main); margin-bottom: 0;">
-                            <input type="checkbox" id="runImmediately" class="filter-checkbox" style="margin: 0;" checked>
-                            Run first generation immediately
+                        <label class="checkbox-label-inline" style="font-size: 0.85rem;">
+                            <input type="checkbox" id="runImmediately" class="filter-checkbox" checked>
+                            Start now
                         </label>
+
+                        <!-- Select Start Date/Time -->
+                         <div id="customStartTimeContainer" style="display: none;">
+                            <label class="sub-label">First run date & time:</label>
+                            <input type="datetime-local" id="customStartTime" class="datetime-picker-sm">
+                        </div>
                     </div>
 
                     <!-- Generate Recently Added Link Button -->
-                    <button type="button" id="generateSnapshotBtn" class="btn-outline" style="width: 100%; height: 37px; display: flex; justify-content: center; align-items: center; gap: 8px; border-color: var(--border-dim); color: var(--text-main);">
-                        <i class="fas fa-camera"></i> Generate Snapshot
+                    <button type="button" id="generateSnapshotBtn" class="btn-outline btn-generate">
+                        <i class="fas fa-camera"></i> <span>Generate "Recently Added" Link</span>
                     </button>
                     
                     <!-- Copy Link Field -->
-                    <div id="snapshotResultContainer" style="display: none; width: 100%; margin-top: 10px;">
-                        <div class="password-wrapper" id="copySnapshotWrapper" title="Click to copy" style="cursor: pointer; width: 100%;">
-                            <input type="text" id="snapshotResult" readonly style="cursor: pointer; padding: 0 40px 0 10px; height: 42px; font-size: 1rem; border-color: var(--rgb-primary); box-shadow: 0 0 0 1px var(--rgb-primary); width: 100%; margin: 0;" value="">
-                            <i class="fas fa-copy toggle-password" id="copySnapshotIcon" style="color: var(--text-sub);"></i>
+                    <div id="snapshotResultContainer" class="result-container" style="display: none;">
+                        <div class="password-wrapper copy-link-wrapper" id="copySnapshotWrapper" title="Click to copy">
+                            <input type="text" id="snapshotResult" class="copy-link-input" readonly value="">
+                            <i class="fas fa-copy toggle-password" id="copySnapshotIcon"></i>
                         </div>
                     </div>
                 </div>
@@ -656,7 +661,7 @@
             {% endif %}
 
             <!-- VERSION NUMBER -->
-            <div style="text-align: left; margin-top: 30px; margin-bottom: 10px; border-top: 1px solid var(--border-dim); padding-top: 20px; font-size: 0.75rem; color: var(--text-sub); opacity: 0.8;">
+            <div class="vtag-container">
                 <div class="version-tag">Jellybrry {{ version }}</div>
             </div>
         </div>
@@ -1806,15 +1811,21 @@
             // UI Morphing Logic
             function updateSnapshotBtnUI() {
                 if (!generateSnapshotBtn) return;
+
+                const customStartTimeContainer = document.getElementById('customStartTimeContainer');
                 
                 if (enableRecurring.checked) {
                     recurringSettings.style.display = 'block';
                     generateSnapshotBtn.classList.remove('btn-outline');
-                    generateSnapshotBtn.classList.add('btn-primary'); // Make it pop!
+                    generateSnapshotBtn.classList.add('btn-primary');
                     if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-save';
                     
-                    if (snapshotBtnText) {
-                        snapshotBtnText.innerText = runImmediately.checked ? 'Save & Generate Now' : 'Save Automation';
+                    if (runImmediately.checked) {
+                        if (snapshotBtnText) snapshotBtnText.innerText = 'Save Schedule & Generate Link';
+                        if (customStartTimeContainer) customStartTimeContainer.style.display = 'none';
+                    } else {
+                        if (snapshotBtnText) snapshotBtnText.innerText = 'Save Link Schedule';
+                        if (customStartTimeContainer) customStartTimeContainer.style.display = 'block';
                     }
                 } else {
                     recurringSettings.style.display = 'none';

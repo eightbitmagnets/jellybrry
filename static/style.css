@@ -1326,7 +1326,7 @@ img, video, iframe {
 .number-input-sm {
     width: 80px !important;
     text-align: center;
-    height: 42px;
+    height: 37px;
 }
 .number-input-xs {
     width: 60px !important;
@@ -1335,12 +1335,12 @@ img, video, iframe {
 }
 .select-flex {
     flex: 1;
-    height: 42px;
+    height: 37px;
     margin-bottom: 0;
 }
 .select-flex-sm {
     flex: 1;
-    height: 36px;
+    height: 37px;
     margin-bottom: 0;
 }
 .input-suffix {
@@ -1399,6 +1399,36 @@ img, video, iframe {
     border-color: var(--color-accent) !important;
     box-shadow: 0 0 0 1px var(--color-accent);
     margin: 0;
+}
+
+/* 'Recently Added' Links */
+.datetime-picker-sm {
+    width: 100%;
+    height: 36px;
+    padding: 0 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-dim);
+    color: var(--text-main);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+/* Chrome/Safari native calendar icon dark mode */
+.datetime-picker-sm::-webkit-calendar-picker-indicator {
+    filter: invert(0.8);
+    cursor: pointer;
+}
+
+/* Versions */
+.vtag-container {
+    text-align: left;
+    margin-top: 30px;
+    margin-bottom: 10px;
+    border-top: 1px solid var(--border-dim);
+    padding-top: 20px;
+    font-size: 0.75rem;
+    color: var(--text-sub);
+    opacity: 0.8;
 }
 
 /* === Theme Selector UI (Settings) === */
