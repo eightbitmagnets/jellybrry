@@ -215,7 +215,7 @@ img, video, iframe {
 }
 
 .form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .form-group label {
@@ -231,7 +231,7 @@ img, video, iframe {
     border: 1px solid var(--border-dim);
     color: var(--text-main);
     border-radius: 6px;
-    box-sizing: border-box; 
+    box-sizing: border-box;
 }
 
 /* Universal select inputs */
@@ -1287,6 +1287,179 @@ img, video, iframe {
     letter-spacing: 0.5px;
     text-transform: uppercase;
     box-shadow: var(--shadow-sm);
+}
+
+/* === SETTINGS === */
+/* === Share & Automation Generator UI === */
+
+/* === FROM HTML
+--CURRENT VIEW
+<div class="form-group" style="margin-bottom: 20px;">
+<button type="button" id="generateShortlinkBtn" class="btn-outline" style="width: 100%; height: 37px; padding: 0 10px; border-color: var(--border-dim); color: var(--text-main); display: flex; justify-content: center; align-items: center; gap: 8px;">
+
+<div id="shortlinkResultContainer" style="display: none; width: 100%;">
+<div class="password-wrapper" id="copyLinkWrapper" title="Click to copy" style="cursor: pointer; width: 100%;">
+<input type="text" id="shortlinkResult" readonly style="cursor: pointer; padding: 0 40px 0 10px; height: 37px; border-color: var(--rgb-primary); box-shadow: 0 0 0 1px var(--rgb-primary); width: 100%; margin: 0;" value="">
+<i class="fas fa-copy toggle-password" id="copyShortlinkIcon" style="color: var(--text-sub);"></i>
+
+--RECENTLY ADDED
+<div class="form-group" style="margin-bottom: 20px;">
+<div style="margin-bottom: 8px;">
+<label style="margin-bottom: 0;">Share Recently Added</label>
+*/
+
+.settings-label-group {
+    margin-bottom: 8px;
+}
+.settings-label-group label {
+    margin-bottom: 0;
+}
+.input-group-flex {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.input-group-flex.no-margin {
+    margin-bottom: 0;
+}
+.number-input-sm {
+    width: 80px !important;
+    text-align: center;
+    height: 37px;
+}
+.number-input-xs {
+    width: 60px !important;
+    text-align: center;
+    height: 36px;
+}
+.select-flex {
+    flex: 1;
+    height: 37px;
+    margin-bottom: 0;
+}
+.select-flex-sm {
+    flex: 1;
+    height: 37px;
+    margin-bottom: 0;
+}
+.input-suffix {
+    color: var(--text-sub);
+    white-space: nowrap;
+}
+.checkbox-label-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: var(--text-main);
+    margin: 0;
+}
+.checkbox-label-inline input[type="checkbox"] {
+    width: auto !important; /* Overrides the 100% width from .form-group input */
+    padding: 0;
+    margin: 0;
+}
+.settings-sub-panel {
+    margin-bottom: 15px;
+    padding: 12px;
+    background: var(--bg-tint-dim);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+}
+.sub-label {
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    margin-bottom: 4px;
+    display: block;
+}
+.btn-generate {
+    width: 100%;
+    height: 37px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+}
+.result-container {
+    width: 100%;
+    margin-top: 10px;
+}
+.copy-link-wrapper {
+    cursor: pointer;
+    width: 100%;
+}
+.copy-link-input {
+    cursor: pointer;
+    padding: 0 40px 0 10px !important;
+    height: 37px;
+    font-size: 1rem;
+    border-color: var(--color-accent) !important;
+    box-shadow: 0 0 0 1px var(--color-accent);
+    margin: 0;
+}
+
+/* 'Recently Added' Links */
+/* === Seamless Select Row (Google Calendar Style) === */
+.seamless-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 5px;
+    border-radius: 8px;
+}
+.seamless-icon {
+    color: var(--text-sub);
+    font-size: 1.2rem;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.seamless-select {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    outline: none;
+    appearance: none; /* Removes the default arrow to look like flat text */
+}
+.seamless-select option {
+    background: var(--bg-card);
+    color: var(--text-main);
+}
+
+.datetime-picker-sm {
+    width: 100%;
+    height: 36px;
+    padding: 0 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-dim);
+    color: var(--text-main);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+/* Chrome/Safari native calendar icon dark mode */
+.datetime-picker-sm::-webkit-calendar-picker-indicator {
+    filter: invert(0.8);
+    cursor: pointer;
+}
+
+/* Versions */
+.vtag-container {
+    text-align: left;
+    margin-top: 30px;
+    margin-bottom: 10px;
+    border-top: 1px solid var(--border-dim);
+    padding-top: 20px;
+    font-size: 0.75rem;
+    color: var(--text-sub);
+    opacity: 0.8;
 }
 
 /* === Theme Selector UI (Settings) === */

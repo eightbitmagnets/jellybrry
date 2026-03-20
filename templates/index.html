@@ -18,6 +18,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body class="{% if locked %}locked-mode{% endif %} theme-{{ config.theme|default('dark') }}">
     <!-- Anti-FOUC -->
@@ -211,36 +212,42 @@
                     <img id="detailsPosterImg" src="" alt="Poster" class="card-poster">
                 </div>
                 <div class="details-info">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px;">
                         <h2 id="detailsTitle" style="margin-top: 0; line-height: 1.2;">Title</h2>
-                        <div class="tooltip-container" style="position: relative; display: inline-block;">
-                            <button id="btnTechInfo" class="btn-icon" style="background: none; border: none; color: var(--text-sub); opacity: 0.7; cursor: pointer; padding: 0; padding-top: 5px;" title="Technical Details">
-                                <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
+                        
+                        <div style="display: flex; align-items: center; gap: 16px; margin-top: 2px;">
+                            
+                            <button id="btnShareItem" class="btn-icon" style="background: none; border: none; color: var(--text-sub); opacity: 0.7; cursor: pointer; padding: 4px; transition: opacity 0.2s;" title="Copy Share Link">
+                                <i class="fas fa-share-nodes" style="font-size: 1.2rem;"></i>
                             </button>
-                            <div id="techInfoBox" class="tech-tooltip tech-info-box">
-                                <div class="tech-scroll-area">
-                                    <div class="tech-group">
-                                        <strong>VIDEO</strong>
-                                        <span id="videoInfo"></span>
-                                    </div>
-                                    <div class="tech-group">
-                                        <strong>AUDIO</strong>
-                                        <span id="audioList"></span>
-                                    </div>
-                                    <div class="tech-group">
-                                        <strong>SUBTITLES</strong>
-                                        <span id="subtitleList"></span>
-                                    </div>
-                                    <div class="tech-group">
-                                        <strong>FILE</strong>
-                                        <span id="fileInfo"></span><br>
-                                        <div id="filePath" class="tech-path-text"></div>
+
+                            <div class="tooltip-container" style="position: relative; display: flex; align-items: center;">
+                                <button id="btnTechInfo" class="btn-icon" style="background: none; border: none; color: var(--text-sub); opacity: 0.7; cursor: pointer; padding: 4px; transition: opacity 0.2s;" title="Technical Details">
+                                    <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
+                                </button>
+                                
+                                <div id="techInfoBox" class="tech-tooltip tech-info-box">
+                                    <div class="tech-scroll-area">
+                                        <div class="tech-group">
+                                            <strong>VIDEO</strong>
+                                            <span id="videoInfo"></span>
+                                        </div>
+                                        <div class="tech-group">
+                                            <strong>AUDIO</strong>
+                                            <span id="audioList"></span>
+                                        </div>
+                                        <div class="tech-group">
+                                            <strong>SUBTITLES</strong>
+                                            <span id="subtitleList"></span>
+                                        </div>
+                                        <div class="tech-group">
+                                            <strong>FILE</strong>
+                                            <span id="fileInfo"></span><br>
+                                            <div id="filePath" class="tech-path-text"></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="details-meta-row">
+                            </div> </div> </div> <div class="details-meta-row">
                         <span id="detailsYear" class="badge">Year</span>
                         <span id="detailsRuntime" class="badge" style="display: none;">Runtime</span>
                         <span id="detailsMpaRating" class="badge" style="display: none;">NR</span>
@@ -332,6 +339,8 @@
             <input type="checkbox" class="filter-checkbox" id="hidden-mpaa" value="">
             <input type="checkbox" class="filter-checkbox" id="hidden-runtime" value="">
             <input type="checkbox" class="filter-checkbox" id="hidden-rating" value="">
+            <input type="checkbox" class="filter-checkbox" id="hidden-da" value="">
+            <input type="checkbox" class="filter-checkbox" id="hidden-al" value="">
         </div>
     </div>
 
@@ -482,7 +491,8 @@
                 </button>
 
                 <div id="hiddenLoginForm" style="display: none;">
-                    <form action="{{ url_for('login') }}" method="POST">
+                    <form action="{{ url_for('login') }}" method="POST" id="guestLoginForm">
+                        <input type="hidden" name="return_url" id="loginReturnUrl" value="">
                         <div class="form-group">
                             <label for="loginPass">Password</label>
                             <div class="password-wrapper">
@@ -503,12 +513,103 @@
             {% if is_admin %}
             <form action="{{ url_for('update_settings') }}" method="POST">
                 <input type="hidden" name="theme" id="hiddenThemeInput" value="{{ config.theme }}">
+
+                <!-- SHARE CURRENT RESULTS -->
+                <div class="form-group">
+                    <button type="button" id="generateShortlinkBtn" class="btn-outline btn-generate">
+                        <i class="fas fa-link"></i> <span>Share Current Results</span>
+                    </button>
+                    
+                    <div id="shortlinkResultContainer" class="result-container" style="display: none;">
+                        <div class="password-wrapper copy-link-wrapper" id="copyLinkWrapper" title="Click to copy">
+                            <input type="text" id="shortlinkResult" class="copy-link-input" readonly value="">
+                            <i class="fas fa-copy toggle-password" id="copyShortlinkIcon"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SHARE RECENTLY ADDED (STATIC)-->
+                <div class="form-group">
+                    <!-- Recently Added Label -->
+                    <div class="settings-label-group">
+                        <label>Share Recently Added</label>
+                    </div>
+                    
+                    <!-- Duration Selection -->
+                    <div class="input-group-flex" style="margin-bottom:0;">
+                        <input type="number" id="snapshotNum" class="number-input-sm" value="7" min="1">
+                        <select id="snapshotUnit" class="select-flex">
+                            <option value="Hours">Hours</option>
+                            <option value="Days" selected>Days</option>
+                            <option value="Weeks">Weeks</option>
+                            <option value="Months">Months</option>
+                        </select>
+                        <span class="input-suffix">to now</span>
+                    </div>
+
+                    <!-- SET UP RECURRING LINK GEN -->
+                    <!-- Create Recurring -->
+                    <div class="seamless-row">
+                        <div class="seamless-icon">
+                            <i class="fas fa-arrow-rotate-right"></i>
+                        </div>
+                        <select id="recurringSelect" class="seamless-select">
+                            <option value="none" selected>Does not repeat</option>
+                            <option value="daily">Every day</option>
+                            <option value="weekly">Every week</option>
+                            <option value="monthly">Every month</option>
+                            <option value="custom">Custom...</option>
+                        </select>
+                    </div>
+                    
+                    <div id="recurringSettings" class="settings-sub-panel" style="display: none;">
+                        <!-- Repeat Frequency Selection -->
+                        <div style="margin-bottom: 12px;">
+                            <label class="sub-label">Repeat every:</label>
+                            <div class="input-group-flex no-margin">
+                                <input type="number" id="recurNum" class="number-input-xs" value="1" min="1">
+                                <select id="recurUnit" class="select-flex-sm">
+                                    <option value="Days">Days</option>
+                                    <option value="Weeks" selected>Weeks</option>
+                                    <option value="Months">Months</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Select Start Date/Time -->
+                         <div id="customStartTimeContainer" style="display: none;">
+                            <label class="sub-label">Start:</label>
+                            <input type="datetime-local" id="customStartTime" class="datetime-picker-sm">
+                        </div>
+
+                        <!-- Run Immediately Checkbox -->
+                        <label class="checkbox-label-inline" style="font-size: 0.85rem; margin-top: 0.5rem;">
+                            <input type="checkbox" id="runImmediately" class="filter-checkbox">
+                            Start now
+                        </label>
+                    </div>
+
+                    <!-- Generate Recently Added Link Button -->
+                    <button type="button" id="generateSnapshotBtn" class="btn-outline btn-generate">
+                        <i class="fas fa-link"></i> <span>Share Recently Added</span>
+                    </button>
+                    
+                    <!-- Copy Link Field -->
+                    <div id="snapshotResultContainer" class="result-container" style="display: none;">
+                        <div class="password-wrapper copy-link-wrapper" id="copySnapshotWrapper" title="Click to copy">
+                            <input type="text" id="snapshotResult" class="copy-link-input" readonly value="">
+                            <i class="fas fa-copy toggle-password" id="copySnapshotIcon"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-divider"></div>
                 
                 <div class="form-group">
                     <label for="serverNameInput">Page Headline</label>
                     <input type="text" id="serverNameInput" name="server_name" value="{{ config.server_name|default('Your Media Server', true) }}" placeholder="Your Media Server">
                 </div>
-
+                
                 <div class="form-divider"></div>
 
                 <div class="form-group">
@@ -559,14 +660,14 @@
                 </div>
 
                 <div class="modal-actions">
-                    <a href="{{ url_for('logout') }}" class="btn-danger">Sign Out</a>
+                    <a href="{{ url_for('logout') }}" id="adminLogoutBtn" class="btn-danger">Sign Out</a>
                     <button type="submit" class="btn-primary" style="flex: 1;">Save Changes</button>
                 </div>
             </form>
             {% endif %}
 
             <!-- VERSION NUMBER -->
-            <div style="text-align: left; margin-top: 30px; margin-bottom: 10px; border-top: 1px solid var(--border-dim); padding-top: 20px; font-size: 0.75rem; color: var(--text-sub); opacity: 0.8;">
+            <div class="vtag-container">
                 <div class="version-tag">Jellybrry {{ version }}</div>
             </div>
         </div>
@@ -584,6 +685,7 @@
         let mediaCache = [];
         let initialTheme = 'dark';
         let tempTheme = null;
+        let lastGeneratedQuery = null;
         const ITEMS_PER_PAGE = 100;
         let currentPage = 1;
         let currentFilteredItems = [];
@@ -595,7 +697,6 @@
         function unlockBodyScroll() {
             document.body.style.overflow = '';
         }
-
      
         document.addEventListener('DOMContentLoaded', () => {
             const flash = document.getElementById('flash-message');
@@ -643,8 +744,11 @@
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('open_settings') === 'true') {
                 openSettings();
-                // Clean URL
-                window.history.replaceState({}, document.title, window.location.pathname);
+                // Clean URL of open_settings param, but keep user filter params
+                urlParams.delete('open_settings');
+                const newSearch = urlParams.toString();
+                const cleanUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+                window.history.replaceState({}, document.title, cleanUrl);
             }
             
             const fallbackSVG = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22200%22%20height%3D%22300%22%20viewBox%3D%220%200%20200%20300%22%3E%3Crect%20fill%3D%22%23333%22%20width%3D%22200%22%20height%3D%22300%22%2F%3E%3Ctext%20fill%3D%22%23777%22%20font-family%3D%22sans-serif%22%20font-size%3D%2220%22%20dy%3D%2210.5%22%20font-weight%3D%22bold%22%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%3ENo%20Image%3C%2Ftext%3E%3C%2Fsvg%3E";
@@ -771,6 +875,7 @@
                     this.style.display = 'none'; // Hide the Admin Signin Button
                     document.getElementById('hiddenLoginForm').style.display = 'block'; // Show the pw form
                     document.getElementById('loginPass').focus(); // Auto-focus the password field
+                    document.getElementById('loginReturnUrl').value = window.location.search;
                 })
             }
 
@@ -950,15 +1055,38 @@
                 if (techBox && techBox.style.display === 'block' && !techBox.contains(event.target) && event.target.closest('#btnTechInfo') === null) {
                     techBox.style.display = 'none';
                 }
+
+                // Revert params on Logout
+                document.getElementById('adminLogoutBtn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    // Take the current URL parameters and append them to the logout path
+                    window.location.href = `/logout${window.location.search}`;
+                });
             });
 
             // 1. Always set the default Title A-Z UI first
             const defaultSortBtn = document.querySelector('.sort-option[data-sort="title"][data-order="asc"]');
             if(defaultSortBtn) defaultSortBtn.classList.add('active');
+            const initialParams = new URLSearchParams(window.location.search);
+            const initialItemId = initialParams.get('id');
 
             // 2. If a URL exists, parse it (this will override the default UI). Otherwise, just run the default filter.
             if (window.location.search) { parseUrlState(); } 
             else { filterMedia(false); }
+
+            // 3. Auto-Open Item Details if ID is present
+            if (initialItemId) {
+                const targetItem = mediaCache.find(m => {
+                    const data = JSON.parse(m.element.getAttribute('data-item'));
+                    return data.Id === initialItemId;
+                });
+                
+                if (targetItem) {
+                    const itemData = JSON.parse(targetItem.element.getAttribute('data-item'));
+                    // Slight delay ensures the background grid and filters finish loading first
+                    setTimeout(() => openDetails(itemData), 50);
+                }
+            }
 
             // === MOBILE NAV HANDLERS ===
             const mobileSearchInput = document.getElementById('mobileSearchInput');
@@ -1158,6 +1286,22 @@
             function openSettings() { 
                 lockBodyScroll();
 
+                // Check if URL changed since we last generated share link
+                const genBtn = document.getElementById('generateShortlinkBtn');
+                const resCont = document.getElementById('shortlinkResultContainer');
+                const resInput = document.getElementById('shortlinkResult');
+
+                if (genBtn && resCont) {
+                    // Get the query, but strip out open_settings so it doesn't trigger a false reset
+                    let currentQuery = window.location.search.substring(1).replace(/&?open_settings=true/g, '');
+                    if (lastGeneratedQuery !== currentQuery) {
+                        resCont.style.display = 'none';
+                        genBtn.style.display = 'block';
+                        if (resInput) resInput.value = '';
+                        lastGeneratedQuery = null;
+                    }
+                }
+
                 const filterOpen = document.getElementById('filterMenu').classList.contains('show');
                 const sortOpen = document.getElementById('sortMenu').classList.contains('show');
                 const searchOpen = document.getElementById('mobileSearchInputBar')?.classList.contains('active');
@@ -1197,6 +1341,11 @@
                 if (sortOpen) { closeMenu('sortMenu', false); }
 
                 setActiveNav(null);
+
+                // Add ID to URL
+                const params = new URLSearchParams(window.location.search);
+                params.set('id', item.Id);
+                window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
 
                 // --- 2. INSTANT UI UPDATES (Title, Year, Overview, Poster) ---
                 document.getElementById('detailsTitle').innerText = item.Name;
@@ -1580,6 +1729,275 @@
                     setTimeout(() => { adminForceRebuildBtn.disabled = false; }, 3000);
                 });
             }
+
+            // === MASTER COPY & CONFETTI UTILITY ===
+            async function copyWithConfetti(textToCopy, iconElement) {
+                try {
+                    await navigator.clipboard.writeText(textToCopy);
+                    const originalClass = iconElement.className;
+                    const isToggle = originalClass.includes('toggle-password');
+                    
+                    iconElement.className = isToggle ? 'fas fa-check toggle-password' : 'fas fa-check';
+                    iconElement.style.color = '#10b981';
+                    
+                    setTimeout(() => { 
+                        iconElement.className = originalClass; 
+                        iconElement.style.color = isToggle ? 'var(--text-sub)' : '';
+                    }, 2000);
+
+                    if (typeof confetti === 'function') {
+                        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, zIndex: 9999999, colors: ['#7950f2', '#c026d3', '#a78bfa'] });
+                    }
+                } catch (err) {
+                    console.error('Failed to copy: ', err);
+                    alert("Failed to copy link.");
+                }
+            }
+
+            // --- 1. STATELESS ITEM SHARE BUTTON ---
+            const btnShareItem = document.getElementById('btnShareItem');
+            if (btnShareItem) {
+                btnShareItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    copyWithConfetti(window.location.href, btnShareItem.querySelector('i'));
+                });
+            }
+
+            // --- 2. SHARE CURRENT VIEW BUTTON (ADMIN) ---
+            const generateShortlinkBtn = document.getElementById('generateShortlinkBtn');
+            const shortlinkResultContainer = document.getElementById('shortlinkResultContainer');
+            const shortlinkResult = document.getElementById('shortlinkResult');
+            const copyLinkWrapper = document.getElementById('copyLinkWrapper');
+            const copyShortlinkIcon = document.getElementById('copyShortlinkIcon');
+
+            if (generateShortlinkBtn) {
+                generateShortlinkBtn.addEventListener('click', async () => {
+                    const currentQuery = window.location.search.substring(1);
+
+                    if (!currentQuery) {
+                        shortlinkResult.value = window.location.origin + window.location.pathname;
+                        shortlinkResultContainer.style.display = 'block';
+                        generateShortlinkBtn.style.display = 'none';
+                        lastGeneratedQuery = currentQuery;
+                        return; 
+                    }
+                    
+                    const originalText = generateShortlinkBtn.innerHTML;
+                    generateShortlinkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                    generateShortlinkBtn.disabled = true;
+
+                    try {
+                        const response = await fetch('/api/generate_shortlink', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: currentQuery })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            shortlinkResult.value = data.short_url;
+                            shortlinkResultContainer.style.display = 'block';
+                            generateShortlinkBtn.style.display = 'none';
+                            lastGeneratedQuery = currentQuery;
+                        } else { alert(data.error); }
+                    } catch (error) { alert("Network error."); } 
+                    finally { generateShortlinkBtn.innerHTML = originalText; generateShortlinkBtn.disabled = false; }
+                });
+            }
+
+            if (copyLinkWrapper) copyLinkWrapper.addEventListener('click', () => copyWithConfetti(shortlinkResult.value, copyShortlinkIcon));
+
+            
+            // --- 3. SHARE RECENTLY ADDED GENERATOR ---
+            const generateSnapshotBtn = document.getElementById('generateSnapshotBtn');
+            const snapshotNum = document.getElementById('snapshotNum');
+            const snapshotUnit = document.getElementById('snapshotUnit');
+            const snapshotResultContainer = document.getElementById('snapshotResultContainer');
+            const snapshotResult = document.getElementById('snapshotResult');
+            const copySnapshotWrapper = document.getElementById('copySnapshotWrapper');
+            const copySnapshotIcon = document.getElementById('copySnapshotIcon');
+            
+            // Recurring UI Elements
+            const recurringSelect = document.getElementById('recurringSelect');
+            const recurringSettings = document.getElementById('recurringSettings');
+            const runImmediately = document.getElementById('runImmediately');
+            const recurNum = document.getElementById('recurNum');
+            const recurUnit = document.getElementById('recurUnit');
+            const customStartTime = document.getElementById('customStartTime');
+            const snapshotBtnText = generateSnapshotBtn ? generateSnapshotBtn.querySelector('span') : null;
+            const snapshotBtnIcon = generateSnapshotBtn ? generateSnapshotBtn.querySelector('i') : null;
+
+            // === Singular/Plural Grammar Shift ===            
+            function adjustPlurals(numInput, selectElement) {
+                if (!numInput || !selectElement) return;
+                const isSingular = parseInt(numInput.value) === 1;
+
+                Array.from(selectElement.options).forEach(opt => {
+                    // We use the underlying 'value' (which is inherently plural, like "Days") as our base word
+                    const baseWord = opt.value;
+                    // If singular, slice off the last letter ('s'). Otherwise, use the base word.
+                    opt.text = isSingular ? baseWord.slice(0, -1) : baseWord;
+                });
+            }
+
+            // Bind the grammar shift to the Recurring inputs
+            if (recurNum && recurUnit) {
+                recurNum.addEventListener('input', () => adjustPlurals(recurNum, recurUnit));
+                adjustPlurals(recurNum, recurUnit); // Run once on load to set initial state
+            }
+            
+            // Bind the grammar shift to the Snapshot inputs
+            if (snapshotNum && snapshotUnit) {
+                snapshotNum.addEventListener('input', () => adjustPlurals(snapshotNum, snapshotUnit));
+                adjustPlurals(snapshotNum, snapshotUnit); // Run once on load to set initial state
+            }
+
+            // UI Morphing Logic
+            function updateSnapshotBtnUI() {
+                if (!generateSnapshotBtn || !recurringSelect) return;
+
+                const val = recurringSelect.value;
+                const customStartTimeContainer = document.getElementById('customStartTimeContainer');
+                let isValid = true;
+                
+                if (val === 'none') {
+                    // Default State
+                    if (recurringSettings) recurringSettings.style.display = 'none';
+                    generateSnapshotBtn.classList.remove('btn-primary');
+                    generateSnapshotBtn.classList.add('btn-outline');
+                    if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-link';
+                    if (snapshotBtnText) snapshotBtnText.innerText = 'Share Recently Added';
+                    
+                } else if (val === 'custom') {
+                    // Custom State, with complete info - Show the advanced settings
+                    if (recurringSettings) recurringSettings.style.display = 'block';
+                    generateSnapshotBtn.classList.remove('btn-outline');
+                    generateSnapshotBtn.classList.add('btn-primary');
+                    if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-save';
+
+                    // Failsafe: Validate "Repeat every X" number
+                    const rNum = parseInt(recurNum.value);
+                    if(!rNum || rNum < 1) isValid = false;
+                    
+                    if (runImmediately && runImmediately.checked) {
+                        // Custom schedule, Start Now
+                        if (snapshotBtnText) snapshotBtnText.innerText = 'Save Schedule & Generate Link';
+                        if (customStartTimeContainer) customStartTimeContainer.style.display = 'none';
+                    } else {
+                        // Custom schedule, Start Date
+                        if (snapshotBtnText) snapshotBtnText.innerText = 'Save Link Schedule';
+                        if (customStartTimeContainer) customStartTimeContainer.style.display = 'block';
+
+                        // INVALID: Custom schedule, No Start Date selected
+                        if (!customStartTime || !customStartTime.value) { isValid = false; }
+                        else {
+                            const selectedDate = new Date(customStartTime.value);
+                            const now = new Date();
+                            if (selectedDate <= now) {
+                                isValid = false;
+                            }
+                        }
+                    }
+                } else {
+                    // Daily, Weekly, Monthly State - Hide custom settings, assume immediate start
+                    if (recurringSettings) recurringSettings.style.display = 'none';
+                    generateSnapshotBtn.classList.remove('btn-outline');
+                    generateSnapshotBtn.classList.add('btn-primary');
+                    if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-save';
+                    if (snapshotBtnText) snapshotBtnText.innerText = 'Save Schedule & Generate Link';
+                }
+
+                // Apply INVALID state
+                generateSnapshotBtn.disabled = !isValid;
+                generateSnapshotBtn.style.opacity = isValid ? '1' : '0.5';
+                generateSnapshotBtn.style.cursor = isValid ? 'pointer' : 'not-allowed';
+            }
+
+            if (recurringSelect) recurringSelect.addEventListener('change', updateSnapshotBtnUI);
+            if (runImmediately) runImmediately.addEventListener('change', updateSnapshotBtnUI);
+            if (customStartTime) customStartTime.addEventListener('change', updateSnapshotBtnUI);
+
+            // Button Click Logic
+            if (generateSnapshotBtn) {
+                generateSnapshotBtn.addEventListener('click', async () => {
+                    const recurMode = recurringSelect ? recurringSelect.value : 'none';
+                    const isRecurring = recurMode !== 'none';
+                    let isImmediate = true; // Default to true unless proven otherwise
+
+                    // 1. DETERMINE INTENT (Save Only vs. Generate Now)
+                    if (isRecurring && recurMode === 'custom') {
+                        isImmediate = runImmediately ? runImmediately.checked : false;
+                    }
+
+                    // 2. MOCK SAVE & STOP (If future schedule only)
+                    if (isRecurring && !isImmediate) {
+                        // TODO: This is where we will add the fetch() to Python in the next step!
+                        
+                        const originalHTML = generateSnapshotBtn.innerHTML;
+                        generateSnapshotBtn.innerHTML = '<i class="fas fa-check" style="transform: translateX(-5px)"></i> <span style="transform: translateX(-5px)">Schedule Saved!</span>';
+                        generateSnapshotBtn.classList.replace('btn-primary', 'btn-outline');
+                        
+                        setTimeout(() => {
+                            generateSnapshotBtn.innerHTML = originalHTML;
+                            generateSnapshotBtn.classList.replace('btn-outline', 'btn-primary');
+                            generateSnapshotBtn.style.color = '';
+                            generateSnapshotBtn.style.borderColor = '';
+                        }, 3000);
+                        
+                        return; // STOP EXECUTING! Do not generate a link.
+                    }
+
+                    // 3. GENERATE THE LINK (Only runs if isImmediate is true)
+                    const num = parseInt(snapshotNum.value) || 7;
+                    const unit = snapshotUnit.value;
+                    const endDate = new Date();
+                    const startDate = new Date();
+
+                    if (unit === 'Hours') startDate.setHours(startDate.getHours() - num);
+                    else if (unit === 'Days') startDate.setDate(startDate.getDate() - num);
+                    else if (unit === 'Weeks') startDate.setDate(startDate.getDate() - (num * 7));
+                    else if (unit === 'Months') startDate.setMonth(startDate.getMonth() - num);
+
+                    const formatIsoLocal = (d) => {
+                        const pad = (n) => String(n).padStart(2, '0');
+                        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                    };
+                    
+                    const query = `srt=date&so=desc&da=${formatIsoLocal(startDate)}_${formatIsoLocal(endDate)}`;
+                    
+                    const originalHTML = generateSnapshotBtn.innerHTML;
+                    generateSnapshotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Generating...</span>';
+                    generateSnapshotBtn.disabled = true;
+
+                    try {
+                        const response = await fetch('/api/generate_shortlink', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: query })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            snapshotResult.value = data.short_url;
+                            snapshotResultContainer.style.display = 'block';
+                            
+                            if (!isRecurring) {
+                                generateSnapshotBtn.style.display = 'none'; // Hide button for one-offs
+                            } else {
+                                generateSnapshotBtn.innerHTML = '<i class="fas fa-check" style="transform: translateX(-5px)"></i> <span style="transform: translateX(-5px)">Saved & Generated!</span>';
+                                setTimeout(() => { 
+                                    generateSnapshotBtn.innerHTML = originalHTML; 
+                                    generateSnapshotBtn.disabled = false;
+                                }, 3000);
+                            }
+                        } else { 
+                            alert(data.error); 
+                            generateSnapshotBtn.innerHTML = originalHTML;
+                            generateSnapshotBtn.disabled = false;
+                        }
+                    } catch(e) { 
+                        alert("Network error."); 
+                        generateSnapshotBtn.innerHTML = originalHTML;
+                        generateSnapshotBtn.disabled = false;
+                    }
+                });
+            }
+
+            if (copySnapshotWrapper) copySnapshotWrapper.addEventListener('click', () => copyWithConfetti(snapshotResult.value, copySnapshotIcon));
         });
 
         function parseUrlState() {
@@ -1643,7 +2061,7 @@
             }
 
             // 4. Extended Filters (Year, MPAA, Runtime, Community Rating)
-            const hiddenMaps = { y: 'hidden-year', r: 'hidden-mpaa', rt: 'hidden-runtime', cr: 'hidden-rating' };
+            const hiddenMaps = { y: 'hidden-year', r: 'hidden-mpaa', rt: 'hidden-runtime', cr: 'hidden-rating', da: 'hidden-da', al: 'hidden-al' };
             
             for (const [shortCode, inputId] of Object.entries(hiddenMaps)) {
                 if (params.has(shortCode)) {
@@ -1668,6 +2086,12 @@
             // Force tooltip to hide when modal is closed
             const techBox = document.getElementById('techInfoBox');
             if (techBox) techBox.style.display = 'none';
+
+            // Remove ID from URL
+            const params = new URLSearchParams(window.location.search);
+            params.delete('id');
+            const newSearch = params.toString();
+            window.history.replaceState({}, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
 
             modal.classList.remove('active');
             unlockBodyScroll();
@@ -1957,6 +2381,71 @@
             }
         }
 
+        function updateUrlState() {
+            const params = new URLSearchParams();
+
+            // 1. Search Query
+            const sqVal = document.getElementById('searchInput')?.value.trim();
+            if (sqVal) params.set('sq', sqVal);
+
+            // 2. Sort & Group State
+            if (currentGroupState) {
+                const reverseGbMap = { 'genre': 'g', 'library': 'l', 'collection': 'c' };
+                params.set('gb', reverseGbMap[currentGroupState]);
+            } else if (currentSortState.criteria !== 'title' || currentSortState.order !== 'asc') {
+                params.set('srt', currentSortState.criteria);
+                params.set('so', currentSortState.order);
+            }
+
+            // 3. Category Arrays
+            const getCheckedValues = (containerId) => {
+                const container = document.getElementById(containerId);
+                if (!container) return [];
+                return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                            .map(cb => cb.value.replace(/[^a-zA-Z0-9]/g, "").toLowerCase());
+            };
+
+            const mt = getCheckedValues('typeInputs');
+            if (mt.length > 0) params.set('mt', mt.join(','));
+
+            const lib = getCheckedValues('libInputs');
+            if (lib.length > 0) params.set('l', lib.join(','));
+
+            const genre = getCheckedValues('genreInputs');
+            if (genre.length > 0) params.set('g', genre.join(','));
+
+            const collection = getCheckedValues('collectionInputs');
+            if (collection.length > 0) params.set('c', collection.join(','));
+
+            // 4. Extended Filters & URL IDs
+            const hiddenYear = document.getElementById('hidden-year');
+            if (hiddenYear && hiddenYear.checked) params.set('y', hiddenYear.value);
+
+            const hiddenMpaa = document.getElementById('hidden-mpaa');
+            if (hiddenMpaa && hiddenMpaa.checked) params.set('r', hiddenMpaa.value);
+
+            const hiddenRuntime = document.getElementById('hidden-runtime');
+            if (hiddenRuntime && hiddenRuntime.checked) params.set('rt', hiddenRuntime.value);
+
+            const hiddenRating = document.getElementById('hidden-rating');
+            if (hiddenRating && hiddenRating.checked) params.set('cr', hiddenRating.value);
+
+            const existingUrlParams = new URLSearchParams(window.location.search);
+            if (existingUrlParams.has('id')) {
+                params.set('id', existingUrlParams.get('id'));
+            }
+
+            const hiddenDa = document.getElementById('hidden-da');
+            if (hiddenDa && hiddenDa.checked) params.set('da', hiddenDa.value);
+
+            const hiddenAl = document.getElementById('hidden-al');
+            if (hiddenAl && hiddenAl.checked) params.set('al', hiddenAl.value);
+
+            // 5. Update URL silently
+            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState({}, '', newUrl);
+        }
+
         function filterMedia(skipSort = false) {
             let textFilter = document.getElementById('searchInput').value.toLowerCase();
             currentPage = 1;
@@ -1986,6 +2475,10 @@
             const activeMpaa = hiddenMpaa && hiddenMpaa.checked ? hiddenMpaa.value : null;
             const hiddenRating = document.getElementById('hidden-rating');
             const activeRating = hiddenRating && hiddenRating.checked ? hiddenRating.value : null;
+            const hiddenDa = document.getElementById('hidden-da');
+            const activeDa = hiddenDa && hiddenDa.checked ? hiddenDa.value : null;
+            const hiddenAl = document.getElementById('hidden-al');
+            const activeAl = hiddenAl && hiddenAl.checked ? parseInt(hiddenAl.value) : null;
             
             currentFilteredItems = [];
             for (let item of mediaCache) {
@@ -2015,6 +2508,31 @@
                     const [floor, ceiling] = activeRating.split('-').map(Number);
                     matchesRating = (item.rating >= floor && item.rating < ceiling);
                 }
+
+                let matchesDateAdded = true;
+                if (activeAl || activeDa) {
+                    const originalData = JSON.parse(item.element.getAttribute('data-item'));
+                    const itemDate = new Date(originalData.DateCreated || 0).getTime();
+                    
+                    if (activeAl) {
+                        // Rolling Window: Snap to midnight (00:00:00) of X days ago
+                        const cutoffDate = new Date();
+                        cutoffDate.setDate(cutoffDate.getDate() - activeAl);
+                        cutoffDate.setHours(0, 0, 0, 0); 
+                        
+                        if (itemDate < cutoffDate.getTime()) matchesDateAdded = false;
+                        
+                    } else if (activeDa) {
+                        // Frozen Range (da=YYYY-MM-DD_YYYY-MM-DD or with THH:mm)
+                        const dates = activeDa.split('_');
+                        if (dates.length === 2) {
+                            // If it has a 'T', use exact time. Otherwise, default to midnight/11:59pm for legacy links.
+                            const startDate = new Date(dates[0].includes('T') ? dates[0] : dates[0] + 'T00:00:00').getTime();
+                            const endDate = new Date(dates[1].includes('T') ? dates[1] : dates[1] + 'T23:59:59').getTime();
+                            if (itemDate < startDate || itemDate > endDate) matchesDateAdded = false;
+                        }
+                    }
+                }
                 
                 let matchesAlpha = true;
                 if (currentAlphaFilter) {
@@ -2022,17 +2540,14 @@
                     matchesAlpha = currentAlphaFilter === '#' ? /^[^a-z]/i.test(cleanT) : cleanT.startsWith(currentAlphaFilter.toLowerCase());
                 }
 
-                if (matchesText && matchesType && matchesLib && matchesGenre && matchesCollection && matchesAlpha && matchesYear && matchesRuntime && matchesMpaa && matchesRating) { currentFilteredItems.push(item); }
+                if (matchesText && matchesType && matchesLib && matchesGenre && matchesCollection && matchesAlpha && matchesYear && matchesRuntime && matchesMpaa && matchesRating && matchesDateAdded) { currentFilteredItems.push(item); }
             }
 
             document.querySelectorAll('.count').forEach(el => {
                 el.innerText = currentFilteredItems.length + " results";
             });
             document.getElementById('main-header').style.display = currentFilteredItems.length === 0 ? 'none' : '';
-
-            // Update the URL
             updateUrlState();
-
             if (!skipSort) applySort(); else renderPagination();
         }
 
