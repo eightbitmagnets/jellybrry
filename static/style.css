@@ -215,7 +215,7 @@ img, video, iframe {
 }
 
 .form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .form-group label {
@@ -231,7 +231,7 @@ img, video, iframe {
     border: 1px solid var(--border-dim);
     color: var(--text-main);
     border-radius: 6px;
-    box-sizing: border-box; 
+    box-sizing: border-box;
 }
 
 /* Universal select inputs */
@@ -1402,6 +1402,37 @@ img, video, iframe {
 }
 
 /* 'Recently Added' Links */
+/* === Seamless Select Row (Google Calendar Style) === */
+.seamless-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 5px;
+    border-radius: 8px;
+}
+.seamless-icon {
+    color: var(--text-sub);
+    font-size: 1.2rem;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.seamless-select {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    outline: none;
+    appearance: none; /* Removes the default arrow to look like flat text */
+}
+.seamless-select option {
+    background: var(--bg-card);
+    color: var(--text-main);
+}
+
 .datetime-picker-sm {
     width: 100%;
     height: 36px;

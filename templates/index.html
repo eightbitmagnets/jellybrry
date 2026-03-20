@@ -536,7 +536,7 @@
                     </div>
                     
                     <!-- Duration Selection -->
-                    <div class="input-group-flex">
+                    <div class="input-group-flex" style="margin-bottom:0;">
                         <input type="number" id="snapshotNum" class="number-input-sm" value="7" min="1">
                         <select id="snapshotUnit" class="select-flex">
                             <option value="Hours">Hours</option>
@@ -548,12 +548,18 @@
                     </div>
 
                     <!-- SET UP RECURRING LINK GEN -->
-                    <!-- Create Recurring Checkbox -->
-                    <div style="margin-bottom: 12px;">
-                        <label class="checkbox-label-inline">
-                            <input type="checkbox" id="enableRecurring" class="filter-checkbox">
-                            Recurring
-                        </label>
+                    <!-- Create Recurring -->
+                    <div class="seamless-row">
+                        <div class="seamless-icon">
+                            <i class="fas fa-arrow-rotate-right"></i>
+                        </div>
+                        <select id="recurringSelect" class="seamless-select">
+                            <option value="none" selected>Does not repeat</option>
+                            <option value="daily">Every day</option>
+                            <option value="weekly">Every week</option>
+                            <option value="monthly">Every month</option>
+                            <option value="custom">Custom...</option>
+                        </select>
                     </div>
                     
                     <div id="recurringSettings" class="settings-sub-panel" style="display: none;">
@@ -570,22 +576,22 @@
                             </div>
                         </div>
 
-                        <!-- Run Immediately Checkbox -->
-                        <label class="checkbox-label-inline" style="font-size: 0.85rem;">
-                            <input type="checkbox" id="runImmediately" class="filter-checkbox" checked>
-                            Start now
-                        </label>
-
                         <!-- Select Start Date/Time -->
                          <div id="customStartTimeContainer" style="display: none;">
-                            <label class="sub-label">First run date & time:</label>
+                            <label class="sub-label">Start:</label>
                             <input type="datetime-local" id="customStartTime" class="datetime-picker-sm">
                         </div>
+
+                        <!-- Run Immediately Checkbox -->
+                        <label class="checkbox-label-inline" style="font-size: 0.85rem; margin-top: 0.5rem;">
+                            <input type="checkbox" id="runImmediately" class="filter-checkbox">
+                            Start now
+                        </label>
                     </div>
 
                     <!-- Generate Recently Added Link Button -->
                     <button type="button" id="generateSnapshotBtn" class="btn-outline btn-generate">
-                        <i class="fas fa-camera"></i> <span>Generate "Recently Added" Link</span>
+                        <i class="fas fa-link"></i> <span>Share Recently Added</span>
                     </button>
                     
                     <!-- Copy Link Field -->
@@ -1767,7 +1773,14 @@
             if (generateShortlinkBtn) {
                 generateShortlinkBtn.addEventListener('click', async () => {
                     const currentQuery = window.location.search.substring(1);
-                    if (!currentQuery) return alert("No filters applied! Apply some filters or sorting first.");
+
+                    if (!currentQuery) {
+                        shortlinkResult.value = window.location.origin + window.location.pathname;
+                        shortlinkResultContainer.style.display = 'block';
+                        generateShortlinkBtn.style.display = 'none';
+                        lastGeneratedQuery = currentQuery;
+                        return; 
+                    }
                     
                     const originalText = generateShortlinkBtn.innerHTML;
                     generateShortlinkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
@@ -1802,48 +1815,136 @@
             const copySnapshotIcon = document.getElementById('copySnapshotIcon');
             
             // Recurring UI Elements
-            const enableRecurring = document.getElementById('enableRecurring');
+            const recurringSelect = document.getElementById('recurringSelect');
             const recurringSettings = document.getElementById('recurringSettings');
             const runImmediately = document.getElementById('runImmediately');
+            const recurNum = document.getElementById('recurNum');
+            const recurUnit = document.getElementById('recurUnit');
+            const customStartTime = document.getElementById('customStartTime');
             const snapshotBtnText = generateSnapshotBtn ? generateSnapshotBtn.querySelector('span') : null;
             const snapshotBtnIcon = generateSnapshotBtn ? generateSnapshotBtn.querySelector('i') : null;
 
+            // === Singular/Plural Grammar Shift ===            
+            function adjustPlurals(numInput, selectElement) {
+                if (!numInput || !selectElement) return;
+                const isSingular = parseInt(numInput.value) === 1;
+
+                Array.from(selectElement.options).forEach(opt => {
+                    // We use the underlying 'value' (which is inherently plural, like "Days") as our base word
+                    const baseWord = opt.value;
+                    // If singular, slice off the last letter ('s'). Otherwise, use the base word.
+                    opt.text = isSingular ? baseWord.slice(0, -1) : baseWord;
+                });
+            }
+
+            // Bind the grammar shift to the Recurring inputs
+            if (recurNum && recurUnit) {
+                recurNum.addEventListener('input', () => adjustPlurals(recurNum, recurUnit));
+                adjustPlurals(recurNum, recurUnit); // Run once on load to set initial state
+            }
+            
+            // Bind the grammar shift to the Snapshot inputs
+            if (snapshotNum && snapshotUnit) {
+                snapshotNum.addEventListener('input', () => adjustPlurals(snapshotNum, snapshotUnit));
+                adjustPlurals(snapshotNum, snapshotUnit); // Run once on load to set initial state
+            }
+
             // UI Morphing Logic
             function updateSnapshotBtnUI() {
-                if (!generateSnapshotBtn) return;
+                if (!generateSnapshotBtn || !recurringSelect) return;
 
+                const val = recurringSelect.value;
                 const customStartTimeContainer = document.getElementById('customStartTimeContainer');
+                let isValid = true;
                 
-                if (enableRecurring.checked) {
-                    recurringSettings.style.display = 'block';
+                if (val === 'none') {
+                    // Default State
+                    if (recurringSettings) recurringSettings.style.display = 'none';
+                    generateSnapshotBtn.classList.remove('btn-primary');
+                    generateSnapshotBtn.classList.add('btn-outline');
+                    if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-link';
+                    if (snapshotBtnText) snapshotBtnText.innerText = 'Share Recently Added';
+                    
+                } else if (val === 'custom') {
+                    // Custom State, with complete info - Show the advanced settings
+                    if (recurringSettings) recurringSettings.style.display = 'block';
                     generateSnapshotBtn.classList.remove('btn-outline');
                     generateSnapshotBtn.classList.add('btn-primary');
                     if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-save';
+
+                    // Failsafe: Validate "Repeat every X" number
+                    const rNum = parseInt(recurNum.value);
+                    if(!rNum || rNum < 1) isValid = false;
                     
-                    if (runImmediately.checked) {
+                    if (runImmediately && runImmediately.checked) {
+                        // Custom schedule, Start Now
                         if (snapshotBtnText) snapshotBtnText.innerText = 'Save Schedule & Generate Link';
                         if (customStartTimeContainer) customStartTimeContainer.style.display = 'none';
                     } else {
+                        // Custom schedule, Start Date
                         if (snapshotBtnText) snapshotBtnText.innerText = 'Save Link Schedule';
                         if (customStartTimeContainer) customStartTimeContainer.style.display = 'block';
+
+                        // INVALID: Custom schedule, No Start Date selected
+                        if (!customStartTime || !customStartTime.value) { isValid = false; }
+                        else {
+                            const selectedDate = new Date(customStartTime.value);
+                            const now = new Date();
+                            if (selectedDate <= now) {
+                                isValid = false;
+                            }
+                        }
                     }
                 } else {
-                    recurringSettings.style.display = 'none';
-                    generateSnapshotBtn.classList.remove('btn-primary');
-                    generateSnapshotBtn.classList.add('btn-outline');
-                    if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-camera';
-                    if (snapshotBtnText) snapshotBtnText.innerText = 'Generate Snapshot';
+                    // Daily, Weekly, Monthly State - Hide custom settings, assume immediate start
+                    if (recurringSettings) recurringSettings.style.display = 'none';
+                    generateSnapshotBtn.classList.remove('btn-outline');
+                    generateSnapshotBtn.classList.add('btn-primary');
+                    if (snapshotBtnIcon) snapshotBtnIcon.className = 'fas fa-save';
+                    if (snapshotBtnText) snapshotBtnText.innerText = 'Save Schedule & Generate Link';
                 }
+
+                // Apply INVALID state
+                generateSnapshotBtn.disabled = !isValid;
+                generateSnapshotBtn.style.opacity = isValid ? '1' : '0.5';
+                generateSnapshotBtn.style.cursor = isValid ? 'pointer' : 'not-allowed';
             }
 
-            if (enableRecurring && runImmediately) {
-                enableRecurring.addEventListener('change', updateSnapshotBtnUI);
-                runImmediately.addEventListener('change', updateSnapshotBtnUI);
-            }
+            if (recurringSelect) recurringSelect.addEventListener('change', updateSnapshotBtnUI);
+            if (runImmediately) runImmediately.addEventListener('change', updateSnapshotBtnUI);
+            if (customStartTime) customStartTime.addEventListener('change', updateSnapshotBtnUI);
 
             // Button Click Logic
             if (generateSnapshotBtn) {
                 generateSnapshotBtn.addEventListener('click', async () => {
+                    const recurMode = recurringSelect ? recurringSelect.value : 'none';
+                    const isRecurring = recurMode !== 'none';
+                    let isImmediate = true; // Default to true unless proven otherwise
+
+                    // 1. DETERMINE INTENT (Save Only vs. Generate Now)
+                    if (isRecurring && recurMode === 'custom') {
+                        isImmediate = runImmediately ? runImmediately.checked : false;
+                    }
+
+                    // 2. MOCK SAVE & STOP (If future schedule only)
+                    if (isRecurring && !isImmediate) {
+                        // TODO: This is where we will add the fetch() to Python in the next step!
+                        
+                        const originalHTML = generateSnapshotBtn.innerHTML;
+                        generateSnapshotBtn.innerHTML = '<i class="fas fa-check" style="transform: translateX(-5px)"></i> <span style="transform: translateX(-5px)">Schedule Saved!</span>';
+                        generateSnapshotBtn.classList.replace('btn-primary', 'btn-outline');
+                        
+                        setTimeout(() => {
+                            generateSnapshotBtn.innerHTML = originalHTML;
+                            generateSnapshotBtn.classList.replace('btn-outline', 'btn-primary');
+                            generateSnapshotBtn.style.color = '';
+                            generateSnapshotBtn.style.borderColor = '';
+                        }, 3000);
+                        
+                        return; // STOP EXECUTING! Do not generate a link.
+                    }
+
+                    // 3. GENERATE THE LINK (Only runs if isImmediate is true)
                     const num = parseInt(snapshotNum.value) || 7;
                     const unit = snapshotUnit.value;
                     const endDate = new Date();
@@ -1862,7 +1963,7 @@
                     const query = `srt=date&so=desc&da=${formatIsoLocal(startDate)}_${formatIsoLocal(endDate)}`;
                     
                     const originalHTML = generateSnapshotBtn.innerHTML;
-                    generateSnapshotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                    generateSnapshotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Generating...</span>';
                     generateSnapshotBtn.disabled = true;
 
                     try {
@@ -1873,10 +1974,26 @@
                         if (response.ok) {
                             snapshotResult.value = data.short_url;
                             snapshotResultContainer.style.display = 'block';
-                            generateSnapshotBtn.style.display = 'none';
-                        } else { alert(data.error); }
-                    } catch(e) { alert("Network error."); } 
-                    finally { generateSnapshotBtn.innerHTML = originalHTML; generateSnapshotBtn.disabled = false; }
+                            
+                            if (!isRecurring) {
+                                generateSnapshotBtn.style.display = 'none'; // Hide button for one-offs
+                            } else {
+                                generateSnapshotBtn.innerHTML = '<i class="fas fa-check" style="transform: translateX(-5px)"></i> <span style="transform: translateX(-5px)">Saved & Generated!</span>';
+                                setTimeout(() => { 
+                                    generateSnapshotBtn.innerHTML = originalHTML; 
+                                    generateSnapshotBtn.disabled = false;
+                                }, 3000);
+                            }
+                        } else { 
+                            alert(data.error); 
+                            generateSnapshotBtn.innerHTML = originalHTML;
+                            generateSnapshotBtn.disabled = false;
+                        }
+                    } catch(e) { 
+                        alert("Network error."); 
+                        generateSnapshotBtn.innerHTML = originalHTML;
+                        generateSnapshotBtn.disabled = false;
+                    }
                 });
             }
 

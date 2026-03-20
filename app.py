@@ -484,6 +484,33 @@ def api_generate_shortlink():
     full_url = url_for('redirect_shortlink', short_code=short_code, _external=True)
     return jsonify({"short_url": full_url, "short_code": short_code})
 
+@app.route('/api/save_automation', methods=['POST'])
+def save_automation():
+    # Security check: Only logged-in admins can save schedules
+    if not session.get('is_admin'):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid payload"}), 400
+
+    config = load_config()
+    if config is None:
+        return jsonify({"error": "Server configuration missing"}), 500
+
+    # Save the exact rules sent by our JavaScript frontend
+    config['automation'] = {
+        'recur_num': data.get('recur_num', 1),
+        'recur_unit': data.get('recur_unit', 'Weeks'),
+        'snapshot_num': data.get('snapshot_num', 7),
+        'snapshot_unit': data.get('snapshot_unit', 'Days'),
+        'start_time': data.get('start_time', 'now'),
+        'last_run': None  # We'll use this later to track when it last fired
+    }
+    
+    save_config(config)
+    return jsonify({"success": True, "message": "Automation saved!"})
+
 @app.route('/s/<short_code>')
 def redirect_shortlink(short_code):
     """Reads the shortcode, looks up the query, and bounces the user to the main page."""
