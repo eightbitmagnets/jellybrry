@@ -1292,22 +1292,6 @@ img, video, iframe {
 /* === SETTINGS === */
 /* === Share & Automation Generator UI === */
 
-/* === FROM HTML
---CURRENT VIEW
-<div class="form-group" style="margin-bottom: 20px;">
-<button type="button" id="generateShortlinkBtn" class="btn-outline" style="width: 100%; height: 37px; padding: 0 10px; border-color: var(--border-dim); color: var(--text-main); display: flex; justify-content: center; align-items: center; gap: 8px;">
-
-<div id="shortlinkResultContainer" style="display: none; width: 100%;">
-<div class="password-wrapper" id="copyLinkWrapper" title="Click to copy" style="cursor: pointer; width: 100%;">
-<input type="text" id="shortlinkResult" readonly style="cursor: pointer; padding: 0 40px 0 10px; height: 37px; border-color: var(--rgb-primary); box-shadow: 0 0 0 1px var(--rgb-primary); width: 100%; margin: 0;" value="">
-<i class="fas fa-copy toggle-password" id="copyShortlinkIcon" style="color: var(--text-sub);"></i>
-
---RECENTLY ADDED
-<div class="form-group" style="margin-bottom: 20px;">
-<div style="margin-bottom: 8px;">
-<label style="margin-bottom: 0;">Share Recently Added</label>
-*/
-
 .settings-label-group {
     margin-bottom: 8px;
 }
@@ -1402,7 +1386,6 @@ img, video, iframe {
 }
 
 /* 'Recently Added' Links */
-/* === Seamless Select Row (Google Calendar Style) === */
 .seamless-row {
     display: flex;
     align-items: center;
@@ -1426,7 +1409,7 @@ img, video, iframe {
     padding: 0;
     margin: 0;
     outline: none;
-    appearance: none; /* Removes the default arrow to look like flat text */
+    appearance: none;
 }
 .seamless-select option {
     background: var(--bg-card);
@@ -1442,6 +1425,39 @@ img, video, iframe {
     color: var(--text-main);
     border-radius: 4px;
     box-sizing: border-box;
+}
+
+/* === Active Schedule Card === */
+.active-schedule-card {
+    padding: 15px;
+    border: 1px solid var(--border-dim);
+    border-radius: 8px;
+    background: var(--bg-card);
+    margin-bottom: 15px;
+}
+.active-schedule-details {
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    margin-top: 6px;
+    line-height: 1.5;
+}
+
+/* Schedule History Dropdown Options */
+#scheduleHistorySelect option {
+    background-color: var(--bg-card);
+    color: var(--text-main);
+}
+
+/* Naked Trash Can Icon */
+#deleteScheduleBtn {
+    background: transparent;
+    border: none;
+    color: var(--text-sub);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+#deleteScheduleBtn:hover {
+    color: var(--rgb-danger);
 }
 
 /* Chrome/Safari native calendar icon dark mode */

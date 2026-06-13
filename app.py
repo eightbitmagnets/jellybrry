@@ -484,9 +484,26 @@ def api_generate_shortlink():
     full_url = url_for('redirect_shortlink', short_code=short_code, _external=True)
     return jsonify({"short_url": full_url, "short_code": short_code})
 
+@app.route('/api/automation', methods=['GET', 'DELETE'])
+def manage_automation():
+    if not session.get('is_admin'):
+        return jsonify({"error": "Unauthorized"}), 403
+        
+    config = load_config()
+    
+    # FETCH STATE
+    if request.method == 'GET':
+        return jsonify(config.get('automation', {}))
+        
+    # DELETE STATE
+    if request.method == 'DELETE':
+        if 'automation' in config:
+            del config['automation']
+            save_config(config)
+        return jsonify({"success": True})
+    
 @app.route('/api/save_automation', methods=['POST'])
 def save_automation():
-    # Security check: Only logged-in admins can save schedules
     if not session.get('is_admin'):
         return jsonify({"error": "Unauthorized"}), 403
 
@@ -498,14 +515,25 @@ def save_automation():
     if config is None:
         return jsonify({"error": "Server configuration missing"}), 500
 
-    # Save the exact rules sent by our JavaScript frontend
+    # If the user clicked "Start Now", the frontend will pass the first link it generated
+    history = []
+    initial_link = data.get('initial_link')
+    initial_date = data.get('initial_date')
+    
+    if initial_link and initial_date:
+        history.append({
+            'url': initial_link,
+            'date': initial_date
+        })
+
     config['automation'] = {
         'recur_num': data.get('recur_num', 1),
         'recur_unit': data.get('recur_unit', 'Weeks'),
         'snapshot_num': data.get('snapshot_num', 7),
         'snapshot_unit': data.get('snapshot_unit', 'Days'),
         'start_time': data.get('start_time', 'now'),
-        'last_run': None  # We'll use this later to track when it last fired
+        'last_run': initial_date if initial_link else None, # Mark it as run if we just generated a link
+        'history': history
     }
     
     save_config(config)
@@ -796,6 +824,87 @@ if load_config() and (os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.d
         else:
             print("🚀 Booting up! Initiating full background sync...", flush=True)
             threading.Thread(target=background_sync_worker, kwargs={"force_refresh": True, "delta_sync": False}).start()
+
+# === AUTOMATION ENGINE ===
+def run_automation_engine():
+    with app.app_context():
+        while True:
+            time.sleep(60) 
+            
+            try:
+                config = load_config()
+                if not config or 'automation' not in config:
+                    continue
+                    
+                auto = config['automation']
+                # Force strict UTC time so Docker's default timezone doesn't mess us up
+                now = datetime.now(timezone.utc) 
+                
+                if auto.get('last_run'):
+                    try:
+                        last_str = auto['last_run'].replace('Z', '+00:00')
+                        last = datetime.fromisoformat(last_str)
+                        if last.tzinfo is None:
+                            last = last.replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        continue
+                        
+                    num = int(auto.get('recur_num', 1))
+                    unit = auto.get('recur_unit', 'Weeks')
+                    
+                    if unit == 'Days': next_run = last + timedelta(days=num)
+                    elif unit == 'Weeks': next_run = last + timedelta(weeks=num)
+                    elif unit == 'Months': next_run = last + timedelta(days=30*num)
+                    else: next_run = last + timedelta(weeks=1)
+                else:
+                    if auto.get('start_time') == 'now':
+                        next_run = now 
+                    else:
+                        try:
+                            start_str = auto['start_time'].replace('Z', '+00:00')
+                            next_run = datetime.fromisoformat(start_str)
+                            if next_run.tzinfo is None:
+                                next_run = next_run.replace(tzinfo=timezone.utc)
+                        except ValueError:
+                            continue
+                            
+                if now >= next_run:
+                    snap_num = int(auto.get('snapshot_num', 7))
+                    snap_unit = auto.get('snapshot_unit', 'Days')
+                    
+                    start_date = now
+                    if snap_unit == 'Hours': start_date = now - timedelta(hours=snap_num)
+                    elif snap_unit == 'Days': start_date = now - timedelta(days=snap_num)
+                    elif snap_unit == 'Weeks': start_date = now - timedelta(weeks=snap_num)
+                    elif snap_unit == 'Months': start_date = now - timedelta(days=30*snap_num)
+                    
+                    # Add a 'Z' so your browser explicitly knows this is a UTC timestamp
+                    da_query = f"srt=date&so=desc&da={start_date.strftime('%Y-%m-%dT%H:%M')}Z_{now.strftime('%Y-%m-%dT%H:%M')}Z"
+                    
+                    short_code = generate_short_code()
+                    conn = get_db_connection()
+                    conn.execute('INSERT INTO shared_links (short_code, raw_query) VALUES (?, ?)', (short_code, da_query))
+                    conn.commit()
+                    conn.close()
+                    
+                    if 'history' not in auto:
+                        auto['history'] = []
+                        
+                    iso_now = now.isoformat().replace('+00:00', 'Z')
+                    auto['history'].insert(0, {
+                        'short_code': short_code,
+                        'date': iso_now
+                    })
+                    
+                    auto['history'] = auto['history'][:10]
+                    auto['last_run'] = iso_now
+                    
+                    save_config(config)
+                    
+            except Exception as e:
+                print(f"Automation Engine Error: {e}")
+
+threading.Thread(target=run_automation_engine, daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=6070, debug=True)

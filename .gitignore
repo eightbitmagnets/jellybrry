@@ -6,11 +6,17 @@ venv/
 env/
 .env
 
+# Ignore local database files
+*.database
+*.sqlite
+*.sqlite3
+
 # MacOS garbage
 .DS_Store
 
 # SECURITY: Do not upload your personal settings!
 config/settings.json
+settings.json
 instance/
 
 # Cache Files
