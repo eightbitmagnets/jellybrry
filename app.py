@@ -23,6 +23,14 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 def inject_version():
     return dict(version=os.environ.get('VERSION', 'v1.4.1'))
 
+@app.after_request
+def add_cors_headers(response):
+    # This intercepts every response and stamps it with CORS permission
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+
 # === Configuration Paths ===
 CONFIG_DIR = "/config"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")
