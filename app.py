@@ -626,7 +626,11 @@ def api_recents():
             
     # 3. Sort Newest First
     payload.sort(key=lambda x: x['date_added'], reverse=True)
-    return jsonify(payload)
+    
+    # Add CORS header so ghosthouse.stream is allowed to read this data
+    response = jsonify(payload)
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    return response
 
 @app.route('/')
 def index():
