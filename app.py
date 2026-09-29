@@ -637,7 +637,7 @@ def api_recents():
     
     # Add CORS header so ghosthouse.stream is allowed to read this data
     response = jsonify(payload)
-    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
 @app.route('/')
