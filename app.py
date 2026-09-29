@@ -23,14 +23,6 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 def inject_version():
     return dict(version=os.environ.get('VERSION', 'v1.4.1'))
 
-@app.after_request
-def add_cors_headers(response):
-    # This intercepts every response and stamps it with CORS permission
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    return response
-
 # === Configuration Paths ===
 CONFIG_DIR = "/config"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")
@@ -634,11 +626,7 @@ def api_recents():
             
     # 3. Sort Newest First
     payload.sort(key=lambda x: x['date_added'], reverse=True)
-    
-    # Add CORS header so ghosthouse.stream is allowed to read this data
     response = jsonify(payload)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
 
 @app.route('/')
 def index():
