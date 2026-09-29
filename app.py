@@ -21,7 +21,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 @app.context_processor
 def inject_version():
-    return dict(version=os.environ.get('VERSION', 'v1.3.0'))
+    return dict(version=os.environ.get('VERSION', 'v1.4.1'))
 
 # === Configuration Paths ===
 CONFIG_DIR = "/config"
@@ -575,6 +575,58 @@ def get_item_details(item_id):
         pass
 
     return {"error": "Failed to fetch details"}, 500
+
+@app.route('/api/recents')
+def api_recents():
+    items = fetch_library()
+    da_param = request.args.get('da')
+    now = datetime.now(timezone.utc)
+    
+    # 1. Determine Date Range
+    if da_param and '_' in da_param:
+        # Uses your existing URL code logic (e.g., Saturday to Saturday)
+        try:
+            start_str, end_str = da_param.split('_')
+            start_date = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+            end_date = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
+        except ValueError:
+            start_date = now - timedelta(days=7)
+            end_date = now
+    else:
+        # Default: Rolling 7 days (1 week ago through Now)
+        start_date = now - timedelta(days=7)
+        end_date = now
+        
+    # 2. Filter and Format
+    payload = []
+    for item in items:
+        date_str = item.get('DateCreated')
+        if not date_str:
+            continue
+            
+        try:
+            # Clean Jellyfin's elongated UTC format (e.g., 2024-03-10T15:30:00.0000000Z)
+            clean_date = date_str.split('.')[0] 
+            item_date = datetime.fromisoformat(clean_date).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+            
+        if start_date <= item_date <= end_date:
+            # _external=True is CRITICAL for Discord embeds to see the images
+            image_url = url_for('proxy_image', path=f"/Items/{item['Id']}/Images/Primary", fillWidth=400, quality=90, _external=True)
+            
+            payload.append({
+                "id": item['Id'],
+                "title": item.get('Name', 'Unknown Title'),
+                "type": item.get('Type', 'Unknown'),
+                "date_added": item_date.isoformat(),
+                "image": image_url,
+                "link": url_for('index', _external=True) + f"?q={item.get('Name', '')}" 
+            })
+            
+    # 3. Sort Newest First
+    payload.sort(key=lambda x: x['date_added'], reverse=True)
+    return jsonify(payload)
 
 @app.route('/')
 def index():
